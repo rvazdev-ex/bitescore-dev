@@ -1,3 +1,4 @@
 [console_scripts]
 bitescore = bitescore.cli:main
 bitescore-chat = bitescore.app.chatbot:main
+bitescore-web = bitescore.api.main:main
