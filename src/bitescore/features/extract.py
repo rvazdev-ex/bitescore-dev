@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Callable, List
+from typing import Callable, List, Optional
 import os
 import pandas as pd
 from Bio.SeqRecord import SeqRecord
@@ -9,6 +9,7 @@ from .function import annotation_row, load_uniprot_records
 from .cleavage import cleavage_accessibility_scores
 from .hooks import hooks_to_evidence, run_annotation_hooks, HookResult
 from .structure import structure_features
+from .esm import compute_esm_feature_table
 from ..tools.blast import diamond_top_hits, blastp_top_hits
 from ..tools.hmmer import hmmscan_domains
 from ..tools.interpro import interproscan
@@ -235,6 +236,26 @@ def merge_feature_frames(frames: List[pd.DataFrame]) -> pd.DataFrame:
     return merged.reset_index().fillna(0)
 
 
+def compute_esm_features(
+    records: List[SeqRecord],
+    esm_model: str = "esm2_t6_8M_UR50D",
+    batch_size: int = 8,
+    cache_dir: Optional[Path] = None,
+) -> pd.DataFrame:
+    """Compute ESM-2 embedding features for a list of SeqRecords.
+
+    Delegates to :func:`esm.compute_esm_feature_table`.  Returns a DataFrame
+    with id + embedding dimension columns.  When torch/esm are not installed,
+    returns an id-only DataFrame so the rest of the pipeline can proceed.
+    """
+    return compute_esm_feature_table(
+        records,
+        model_name=esm_model,
+        batch_size=batch_size,
+        cache_dir=cache_dir,
+    )
+
+
 def compute_features(
     records: List[SeqRecord],
     structure_enabled: bool = True,
@@ -247,6 +268,8 @@ def compute_features(
     run_interpro: bool = False,
     threads: int | None = None,
     cfg: dict | None = None,
+    esm_enabled: bool = False,
+    esm_model: str = "esm2_t6_8M_UR50D",
 ) -> pd.DataFrame:
     aa_df = compute_aa_features(records)
     reg_df = compute_regsite_features(records)
@@ -266,4 +289,12 @@ def compute_features(
         run_interpro=run_interpro,
         cfg=cfg,
     )
-    return merge_feature_frames([aa_df, reg_df, struct_df, func_df])
+    frames = [aa_df, reg_df, struct_df, func_df]
+    if esm_enabled:
+        esm_df = compute_esm_features(
+            records,
+            esm_model=esm_model,
+            cache_dir=cache_dir,
+        )
+        frames.append(esm_df)
+    return merge_feature_frames(frames)

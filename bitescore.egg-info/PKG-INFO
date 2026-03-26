@@ -24,6 +24,9 @@ Provides-Extra: go
 Requires-Dist: goatools>=1.3.1; extra == "go"
 Provides-Extra: gradio
 Requires-Dist: gradio>=4.38; extra == "gradio"
+Provides-Extra: dl
+Requires-Dist: torch>=2.0; extra == "dl"
+Requires-Dist: fair-esm>=2.0; extra == "dl"
 Provides-Extra: dev
 Requires-Dist: pytest>=7.4; extra == "dev"
 Requires-Dist: pytest-cov>=4.1; extra == "dev"
@@ -41,7 +44,8 @@ A pip-installable Python package and CLI to predict and rank **digestibility of 
 - **Modular CLI**: run the full pipeline end-to-end or execute individual steps
 - **Optional annotation layers**: DIAMOND/BLAST, GO term mapping, HMMER (Pfam), InterProScan, CD-HIT clustering, low-complexity masking
 - **AlphaFold integration**: optional structure lookup by UniProt accession
-- **Interactive web UI**: Gradio-based chatbot via `bitescore-chat`
+- **Web application**: FastAPI + React dashboard via `bitescore-web` with job tracking, interactive charts, and structure visualization
+- **Interactive chat UI**: Gradio-based chatbot via `bitescore-chat`
 
 ## Installation
 
@@ -133,6 +137,29 @@ bitescore pipeline --input <FILE> --input-type <TYPE> --organism <prok|euk> --ou
 --go-map PATH             Gene Ontology mapping file (id2go.tsv)
 ```
 
+## Web Application
+
+Launch the FastAPI backend with the React frontend:
+
+```bash
+bitescore-web   # opens at http://localhost:8000
+```
+
+The web app provides:
+
+- **Predict page** -- upload FASTA files or paste sequences and run the pipeline from the browser
+- **Results page** -- interactive charts (Chart.js) and a sortable feature table for ranked proteins
+- **About page** -- background on the scoring methodology
+
+### Frontend development
+
+```bash
+cd frontend
+npm install
+npm run dev       # Vite dev server with hot reload
+npm run build     # Production build
+```
+
 ## Chat UI
 
 Launch the Gradio chatbot interface:
@@ -201,6 +228,7 @@ src/bitescore/
   cli.py              CLI entry point (Click)
   pipeline.py          Core pipeline orchestration
   report.py            Report generation
+  api/                 FastAPI REST backend
   app/                 Gradio chatbot UI
   features/            Feature extraction (aa, cleavage, structure, function)
   gene_callers/        Gene calling (Prodigal, Augustus, ORF fallback)
@@ -208,6 +236,8 @@ src/bitescore/
   tools/               External tool wrappers (BLAST, HMMER, CD-HIT, etc.)
   io/                  FASTA loaders
   utils/               Configuration and logging
+
+frontend/              React + TypeScript web dashboard (Vite, Tailwind CSS)
 ```
 
 ## License

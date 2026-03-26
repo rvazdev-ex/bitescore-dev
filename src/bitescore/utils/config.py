@@ -36,6 +36,21 @@ DEFAULTS = {
     "features_regsite_path": None,
     "features_structure_path": None,
     "features_function_path": None,
+    "features_esm_path": None,
+    # --- Deep learning & calibration ---
+    "esm_enabled": False,
+    "esm_model": "esm2_t6_8M_UR50D",
+    "esm_batch_size": 8,
+    "calibrate": True,
+    "calibration_method": "isotonic",
+    "mil_model_path": None,
+    "mil_train": False,
+    "mil_hidden_dim": 256,
+    "mil_attention_dim": 128,
+    "mil_epochs": 200,
+    "mil_lr": 1e-3,
+    "digestibility_ref": None,
+    "food_composition": None,
 }
 
 def load_config(yaml_path: str | None, cli_overrides: dict) -> dict:

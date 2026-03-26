@@ -23,5 +23,6 @@ dependencies:
   - hmmer
   - cd-hit
   - blast-legacy
+  - pytorch>=2.0
   - pip:
       - goatools>=1.3.1

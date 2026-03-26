@@ -9,6 +9,8 @@ from .pipeline import (
     step_features_regsite,
     step_features_structure,
     step_features_function,
+    step_features_esm,
+    step_train_mil,
     step_rank,
 )
 from .report import make_report
@@ -44,8 +46,16 @@ def common_opts(f):
 @click.option("--cluster-cdhit", is_flag=True, help="Cluster sequences with CD-HIT before features.")
 @click.option("--cdhit-threshold", type=float, default=None, help="CD-HIT identity threshold (default 0.95).")
 @click.option("--low-complexity", is_flag=True, help="Mask low-complexity regions (segmasker) before features.")
+@click.option("--esm", is_flag=True, help="Enable ESM-2 protein language model embeddings (requires torch + fair-esm).")
+@click.option("--esm-model", type=str, default=None, help="ESM-2 model name (default: esm2_t6_8M_UR50D).")
+@click.option("--no-calibrate", is_flag=True, help="Disable DIAAS calibration (calibration is on by default).")
+@click.option("--calibration-method", type=click.Choice(["isotonic", "linear"]), default=None, help="Calibration method (default: isotonic).")
+@click.option("--mil-model", type=click.Path(path_type=Path), default=None, help="Pre-trained MIL model (.pt) path.")
+@click.option("--mil-train", is_flag=True, help="Train a MIL model on reference digestibility data.")
+@click.option("--digestibility-ref", type=click.Path(exists=True, path_type=Path), default=None, help="CSV with food-level experimental digestibility values.")
+@click.option("--food-composition", type=click.Path(exists=True, path_type=Path), default=None, help="CSV with protein abundance per food.")
 @common_opts
-def pipeline(input_path, input_type, organism, no_structure, alphafold, model, train, go_map, diamond_db, blast_db, pfam_hmms, interpro, pfam2go, interpro2go, diamond_evalue, blast_evalue, pfam_evalue, cluster_cdhit, cdhit_threshold, low_complexity, config, outdir, threads):
+def pipeline(input_path, input_type, organism, no_structure, alphafold, model, train, go_map, diamond_db, blast_db, pfam_hmms, interpro, pfam2go, interpro2go, diamond_evalue, blast_evalue, pfam_evalue, cluster_cdhit, cdhit_threshold, low_complexity, esm, esm_model, no_calibrate, calibration_method, mil_model, mil_train, digestibility_ref, food_composition, config, outdir, threads):
     overrides = dict(
         input_path=str(input_path),
         input_type=input_type,
@@ -68,7 +78,15 @@ def pipeline(input_path, input_type, organism, no_structure, alphafold, model, t
         cluster_cdhit=bool(cluster_cdhit),
         cdhit_threshold=cdhit_threshold,
         low_complexity=bool(low_complexity),
-        threads=threads
+        esm_enabled=bool(esm),
+        esm_model=esm_model,
+        calibrate=not bool(no_calibrate),
+        calibration_method=calibration_method,
+        mil_model_path=str(mil_model) if mil_model else None,
+        mil_train=bool(mil_train),
+        digestibility_ref=str(digestibility_ref) if digestibility_ref else None,
+        food_composition=str(food_composition) if food_composition else None,
+        threads=threads,
     )
     cfg = load_config(str(config) if config else None, overrides)
     if cfg["input_type"] in {"genome","genomes","metagenome"} and cfg.get("organism") is None:
@@ -177,26 +195,72 @@ def cmd_features_function(go_map, diamond_db, blast_db, pfam_hmms, interpro, pfa
     cfg = load_config(str(config) if config else None, overrides)
     step_features_function(cfg)
 
+@main.command(name="features-esm")
+@click.option("--sequences", required=False, type=click.Path(exists=True, path_type=Path), help="Override FASTA input for feature extraction.")
+@click.option("--esm-model", type=str, default=None, help="ESM-2 model name (default: esm2_t6_8M_UR50D).")
+@common_opts
+def cmd_features_esm(sequences, esm_model, config, outdir, threads):
+    overrides = dict(
+        outdir=str(outdir),
+        threads=threads,
+        feature_sequences=str(sequences) if sequences else None,
+        esm_enabled=True,
+        esm_model=esm_model,
+    )
+    cfg = load_config(str(config) if config else None, overrides)
+    step_features_esm(cfg)
+
+
+@main.command(name="train-mil")
+@click.option("--esm", is_flag=True, help="Include ESM embeddings in MIL training features.")
+@click.option("--esm-model", type=str, default=None, help="ESM-2 model name.")
+@click.option("--digestibility-ref", type=click.Path(exists=True, path_type=Path), default=None, help="CSV with food-level digestibility values.")
+@click.option("--food-composition", type=click.Path(exists=True, path_type=Path), default=None, help="CSV with protein abundance per food.")
+@click.option("--mil-epochs", type=int, default=None, help="MIL training epochs (default: 200).")
+@click.option("--mil-lr", type=float, default=None, help="MIL learning rate (default: 1e-3).")
+@common_opts
+def cmd_train_mil(esm, esm_model, digestibility_ref, food_composition, mil_epochs, mil_lr, config, outdir, threads):
+    overrides = dict(
+        outdir=str(outdir),
+        threads=threads,
+        esm_enabled=bool(esm),
+        esm_model=esm_model,
+        mil_train=True,
+        digestibility_ref=str(digestibility_ref) if digestibility_ref else None,
+        food_composition=str(food_composition) if food_composition else None,
+        mil_epochs=mil_epochs,
+        mil_lr=mil_lr,
+    )
+    cfg = load_config(str(config) if config else None, overrides)
+    step_train_mil(cfg)
+
+
 @main.command(name="rank")
 @click.option("--model", type=click.Path(path_type=Path), default=None)
 @click.option("--train", is_flag=True)
+@click.option("--no-calibrate", is_flag=True, help="Disable DIAAS calibration.")
+@click.option("--mil-model", type=click.Path(path_type=Path), default=None, help="Pre-trained MIL model (.pt) path.")
 @click.option("--features-aa", "features_aa", type=click.Path(exists=True, path_type=Path), default=None, help="Path to a precomputed amino acid feature table.")
 @click.option("--features-regsite", "features_regsite", type=click.Path(exists=True, path_type=Path), default=None, help="Path to a precomputed protease recognition site feature table.")
 @click.option("--features-structure", "features_structure", type=click.Path(exists=True, path_type=Path), default=None, help="Path to a precomputed structure accessibility feature table.")
 @click.option("--features-function", "features_function", type=click.Path(exists=True, path_type=Path), default=None, help="Path to a precomputed function feature table.")
+@click.option("--features-esm", "features_esm", type=click.Path(exists=True, path_type=Path), default=None, help="Path to a precomputed ESM embedding feature table.")
 @common_opts
-def cmd_rank(model, train, features_aa, features_regsite, features_structure, features_function, config, outdir, threads):
+def cmd_rank(model, train, no_calibrate, mil_model, features_aa, features_regsite, features_structure, features_function, features_esm, config, outdir, threads):
     cfg = load_config(
         str(config) if config else None,
         dict(
             model_path=str(model) if model else None,
             train_demo=bool(train),
+            calibrate=not bool(no_calibrate),
+            mil_model_path=str(mil_model) if mil_model else None,
             outdir=str(outdir),
             threads=threads,
             features_aa_path=str(features_aa) if features_aa else None,
             features_regsite_path=str(features_regsite) if features_regsite else None,
             features_structure_path=str(features_structure) if features_structure else None,
             features_function_path=str(features_function) if features_function else None,
+            features_esm_path=str(features_esm) if features_esm else None,
         ),
     )
     step_rank(cfg)
