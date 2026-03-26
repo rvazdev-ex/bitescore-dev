@@ -19,9 +19,11 @@ def call_genes_if_needed(
             raise ValueError("For genome-like inputs, --organism must be 'prok' or 'euk'.")
         if organism == "prok":
             aa = call_prodigal(records, logger=logger)
-            if aa: return aa
+            if aa:
+                return aa
         else:
             aa = call_augustus(records)
-            if aa: return aa
+            if aa:
+                return aa
         return simple_orf_caller(records)
     raise ValueError(f"Unsupported input_type: {input_type}")

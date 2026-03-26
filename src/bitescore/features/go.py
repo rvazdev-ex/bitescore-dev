@@ -11,9 +11,11 @@ def _load_go_map(go_map_path: str | None):
     with p.open() as fh:
         for line in fh:
             line = line.strip()
-            if not line or line.startswith("#"): continue
+            if not line or line.startswith("#"):
+                continue
             parts = line.split("\t")
-            if len(parts) < 2: continue
+            if len(parts) < 2:
+                continue
             acc, gos = parts[0], parts[1]
             m[acc] = [g for g in gos.split(";") if g]
     return m

@@ -83,6 +83,8 @@ def call_augustus(records: List[SeqRecord]) -> Optional[List[SeqRecord]]:
     except subprocess.CalledProcessError:
         return None
     finally:
-        try: in_fa.unlink(missing_ok=True)
-        except: pass
+        try:
+            in_fa.unlink(missing_ok=True)
+        except OSError:
+            pass
     return None

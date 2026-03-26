@@ -12,7 +12,8 @@ def load_inputs(path: str, input_type: str):
         with open(p) as fh:
             for i, line in enumerate(fh, 1):
                 s = line.strip()
-                if not s: continue
+                if not s:
+                    continue
                 recs.append(SeqRecord(Seq(s), id=f"seq_{i}", description=""))
         return recs
     elif input_type in {"genomes","metagenome"}:
