@@ -9,6 +9,9 @@ A pip-installable Python package and CLI to predict and rank **digestibility of 
 - **Modular CLI**: run the full pipeline end-to-end or execute individual steps
 - **Optional annotation layers**: DIAMOND/BLAST, GO term mapping, HMMER (Pfam), InterProScan, CD-HIT clustering, low-complexity masking
 - **AlphaFold integration**: optional structure lookup by UniProt accession
+- **ESM-2 embeddings**: optional protein language model features via `--esm`
+- **Multiple Instance Learning**: train a MIL model on food-level experimental digestibility data
+- **DIAAS calibration**: calibrate scores against Digestible Indispensable Amino Acid Score reference values
 - **Web application**: FastAPI + React dashboard via `bitescore-web` with job tracking, interactive charts, and structure visualization
 
 ## Installation
@@ -65,8 +68,13 @@ bitescore pipeline --input <FILE> --input-type <TYPE> --organism <prok|euk> --ou
 |---|---|
 | `bitescore load` | Load and normalise input sequences |
 | `bitescore call-genes` | Call genes from genome/metagenome inputs |
-| `bitescore features` | Extract the full feature matrix |
+| `bitescore features-aa` | Amino acid composition features |
+| `bitescore features-regsite` | Protease cleavage site features |
+| `bitescore features-structure` | Structural proxy features (with optional AlphaFold) |
+| `bitescore features-function` | Functional annotation features (DIAMOND, BLAST, Pfam, GO) |
+| `bitescore features-esm` | ESM-2 protein language model embeddings |
 | `bitescore rank` | Train or apply the ranking model |
+| `bitescore train-mil` | Train a Multiple Instance Learning model on experimental digestibility data |
 | `bitescore report` | Generate a summary report |
 
 `bitescore call-genes` accepts the same `--input`/`--input-type` pairing as the pipeline when you want to run loading and gene-calling together.
@@ -84,21 +92,34 @@ bitescore pipeline --input <FILE> --input-type <TYPE> --organism <prok|euk> --ou
 ### Common options
 
 ```
---organism prok|euk       Gene calling mode (required for genome inputs)
---threads N               Parallel processing threads
---config FILE             YAML configuration file
---train                   Train a demo model on heuristic targets
---model FILE              Path to a pre-trained .joblib model
---alphafold               Fetch AlphaFold2 structures from UniProt
---no-structure            Skip structure features (faster)
---cluster-cdhit           Pre-cluster sequences with CD-HIT
---cdhit-threshold FLOAT   Clustering identity threshold (default 0.95)
---low-complexity          Mask low-complexity regions
---diamond-db PATH         DIAMOND database for similarity searches
---blast-db PATH           BLAST database (alternative to DIAMOND)
---pfam-hmms PATH          Pfam HMM database for domain scans
---interpro                Run InterProScan
---go-map PATH             Gene Ontology mapping file (id2go.tsv)
+--organism prok|euk           Gene calling mode (required for genome inputs)
+--threads N                   Parallel processing threads
+--config FILE                 YAML configuration file
+--train                       Train a demo model on heuristic targets
+--model FILE                  Path to a pre-trained .joblib model
+--alphafold                   Fetch AlphaFold2 structures from UniProt
+--no-structure                Skip structure features (faster)
+--cluster-cdhit               Pre-cluster sequences with CD-HIT
+--cdhit-threshold FLOAT       Clustering identity threshold (default 0.95)
+--low-complexity              Mask low-complexity regions
+--diamond-db PATH             DIAMOND database for similarity searches
+--blast-db PATH               BLAST database (alternative to DIAMOND)
+--pfam-hmms PATH              Pfam HMM database for domain scans
+--interpro                    Run InterProScan
+--go-map PATH                 Gene Ontology mapping file (id2go.tsv)
+--pfam2go PATH                Pfam2GO mapping file for domain → GO annotation
+--interpro2go PATH            InterPro2GO mapping file
+--diamond-evalue FLOAT        DIAMOND E-value cutoff (default 1e-5)
+--blast-evalue FLOAT          BLAST E-value cutoff (default 1e-5)
+--pfam-evalue FLOAT           Pfam hmmscan E-value cutoff (default 1e-5)
+--esm                         Enable ESM-2 protein language model embeddings
+--esm-model NAME              ESM-2 model name (default: esm2_t6_8M_UR50D)
+--no-calibrate                Disable DIAAS calibration (on by default)
+--calibration-method TYPE     Calibration method: isotonic or linear (default: isotonic)
+--mil-train                   Train a MIL model on reference digestibility data
+--mil-model PATH              Pre-trained MIL model (.pt) path
+--digestibility-ref PATH      CSV with food-level experimental digestibility values
+--food-composition PATH       CSV with protein abundance per food
 ```
 
 ## Web Application
@@ -138,9 +159,11 @@ The pipeline writes the following to the output directory:
 | `features_regsite.csv` | Protease cleavage site features |
 | `features_structure.csv` | Structural features |
 | `features_function.csv` | Functional annotation features |
+| `features_esm.csv` | ESM-2 embedding features (if `--esm` enabled) |
 | `features.csv` | Combined feature matrix |
 | `ranked.csv` | Final ranking with digestibility scores |
 | `model.joblib` | Trained ML model (if `--train` used) |
+| `mil_model.pt` | Trained MIL model (if `--mil-train` used) |
 | `log.txt` | Execution log |
 
 ## Optional databases
@@ -164,11 +187,16 @@ Proteins vary widely in how readily gastrointestinal or secreted proteases can l
 - **Cleavage accessibility.** Counts of Lys/Arg (trypsin) and Phe/Trp/Tyr (chymotrypsin) sites paired with heuristic exposure and flexibility scores that approximate how easily enzymes can reach their preferred motifs.
 - **Functional annotation hooks.** Optional DIAMOND/BLAST searches, GO term mapping, Pfam domain scans, and InterProScan integration connect digestibility predictions with biological roles and enzyme families.
 - **Structural context.** Lightweight structure-aware proxies cached for every sequence, with optional AlphaFold summary statistics (e.g., mean pLDDT) for interpreting disorder or structural confidence.
+- **Protein language model embeddings.** Optional ESM-2 embeddings capture deep evolutionary and structural patterns that complement hand-crafted features.
 - **Genome-aware preprocessing.** Built-in gene calling, low-complexity masking, and CD-HIT clustering ensure only representative, biologically plausible protein sequences enter the feature matrix.
 
 ## Interpreting digestibility scores
 
-The default ranking model is a random forest regressor that operates on the feature matrix described above. In demonstration mode it self-trains on heuristics emphasizing essential amino acid abundance and trypsin-accessible sites, but in production settings you should retrain the model with empirical digestibility measurements that match your organism, protease cocktail, or processing environment. Predictions are best treated as a prioritization aid: experimental assays (in vitro digestion, animal trials, or proteomics) remain the gold standard for validating protein digestibility. Use the optional annotation layers to connect high-scoring candidates with their biological context before investing in laboratory follow-up.
+The default ranking model is a random forest regressor that operates on the feature matrix described above. In demonstration mode it self-trains on heuristics emphasizing essential amino acid abundance and trypsin-accessible sites, but in production settings you should retrain the model with empirical digestibility measurements that match your organism, protease cocktail, or processing environment.
+
+For more accurate predictions, use the **Multiple Instance Learning (MIL)** pathway (`--mil-train`) with experimental digestibility data. The MIL model learns protein-level digestibility from food-level measurements by treating each food as a bag of its constituent proteins. Pair this with **DIAAS calibration** (enabled by default) to align scores with the Digestible Indispensable Amino Acid Score framework used in nutritional science.
+
+Predictions are best treated as a prioritization aid: experimental assays (in vitro digestion, animal trials, or proteomics) remain the gold standard for validating protein digestibility. Use the optional annotation layers to connect high-scoring candidates with their biological context before investing in laboratory follow-up.
 
 ## Testing
 
@@ -185,12 +213,13 @@ src/bitescore/
   pipeline.py          Core pipeline orchestration
   report.py            Report generation
   api/                 FastAPI REST backend + static assets
-  features/            Feature extraction (aa, cleavage, structure, function)
+  features/            Feature extraction (aa, cleavage, structure, function, ESM-2)
   gene_callers/        Gene calling (Prodigal, Augustus, ORF fallback)
-  ml/                  Random Forest ranking model
+  ml/                  Ranking model, MIL model, DIAAS calibration
   tools/               External tool wrappers (BLAST, HMMER, CD-HIT, etc.)
   io/                  FASTA loaders
   utils/               Configuration and logging
+  data/                Reference digestibility dataset
 
 frontend/              React + TypeScript web dashboard (Vite, Tailwind CSS)
 ```
