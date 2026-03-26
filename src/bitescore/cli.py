@@ -36,11 +36,16 @@ def common_opts(f):
 @click.option("--blast-db", type=click.Path(path_type=Path), default=None, help="BLAST database path.")
 @click.option("--pfam-hmms", type=click.Path(path_type=Path), default=None, help="Pfam-A HMMs file.")
 @click.option("--interpro", is_flag=True, help="Run InterProScan if available.")
+@click.option("--pfam2go", type=click.Path(path_type=Path), default=None, help="Pfam2GO mapping file for Pfam domain -> GO term annotation.")
+@click.option("--interpro2go", type=click.Path(path_type=Path), default=None, help="InterPro2GO mapping file.")
+@click.option("--diamond-evalue", type=float, default=None, help="DIAMOND E-value cutoff (default 1e-5).")
+@click.option("--blast-evalue", type=float, default=None, help="BLAST E-value cutoff (default 1e-5).")
+@click.option("--pfam-evalue", type=float, default=None, help="Pfam hmmscan E-value cutoff (default 1e-5).")
 @click.option("--cluster-cdhit", is_flag=True, help="Cluster sequences with CD-HIT before features.")
 @click.option("--cdhit-threshold", type=float, default=None, help="CD-HIT identity threshold (default 0.95).")
 @click.option("--low-complexity", is_flag=True, help="Mask low-complexity regions (segmasker) before features.")
 @common_opts
-def pipeline(input_path, input_type, organism, no_structure, alphafold, model, train, go_map, diamond_db, blast_db, pfam_hmms, interpro, cluster_cdhit, cdhit_threshold, low_complexity, config, outdir, threads):
+def pipeline(input_path, input_type, organism, no_structure, alphafold, model, train, go_map, diamond_db, blast_db, pfam_hmms, interpro, pfam2go, interpro2go, diamond_evalue, blast_evalue, pfam_evalue, cluster_cdhit, cdhit_threshold, low_complexity, config, outdir, threads):
     overrides = dict(
         input_path=str(input_path),
         input_type=input_type,
@@ -55,6 +60,11 @@ def pipeline(input_path, input_type, organism, no_structure, alphafold, model, t
         blast_db=str(blast_db) if blast_db else None,
         pfam_hmms=str(pfam_hmms) if pfam_hmms else None,
         interpro=bool(interpro),
+        pfam2go=str(pfam2go) if pfam2go else None,
+        interpro2go=str(interpro2go) if interpro2go else None,
+        diamond_evalue=diamond_evalue,
+        blast_evalue=blast_evalue,
+        pfam_evalue=pfam_evalue,
         cluster_cdhit=bool(cluster_cdhit),
         cdhit_threshold=cdhit_threshold,
         low_complexity=bool(low_complexity),
@@ -141,15 +151,25 @@ def cmd_features_structure(no_structure, alphafold, sequences, config, outdir, t
 @click.option("--blast-db", type=click.Path(path_type=Path), default=None)
 @click.option("--pfam-hmms", type=click.Path(path_type=Path), default=None)
 @click.option("--interpro", is_flag=True)
+@click.option("--pfam2go", type=click.Path(path_type=Path), default=None, help="Pfam2GO mapping file.")
+@click.option("--interpro2go", type=click.Path(path_type=Path), default=None, help="InterPro2GO mapping file.")
+@click.option("--diamond-evalue", type=float, default=None, help="DIAMOND E-value cutoff.")
+@click.option("--blast-evalue", type=float, default=None, help="BLAST E-value cutoff.")
+@click.option("--pfam-evalue", type=float, default=None, help="Pfam hmmscan E-value cutoff.")
 @click.option("--sequences", required=False, type=click.Path(exists=True, path_type=Path), help="Override FASTA input for feature extraction.")
 @common_opts
-def cmd_features_function(go_map, diamond_db, blast_db, pfam_hmms, interpro, sequences, config, outdir, threads):
+def cmd_features_function(go_map, diamond_db, blast_db, pfam_hmms, interpro, pfam2go, interpro2go, diamond_evalue, blast_evalue, pfam_evalue, sequences, config, outdir, threads):
     overrides = dict(
         go_map=str(go_map) if go_map else None,
         diamond_db=str(diamond_db) if diamond_db else None,
         blast_db=str(blast_db) if blast_db else None,
         pfam_hmms=str(pfam_hmms) if pfam_hmms else None,
         interpro=bool(interpro),
+        pfam2go=str(pfam2go) if pfam2go else None,
+        interpro2go=str(interpro2go) if interpro2go else None,
+        diamond_evalue=diamond_evalue,
+        blast_evalue=blast_evalue,
+        pfam_evalue=pfam_evalue,
         outdir=str(outdir),
         threads=threads,
         feature_sequences=str(sequences) if sequences else None,
