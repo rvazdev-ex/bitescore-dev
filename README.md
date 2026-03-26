@@ -3,30 +3,140 @@
 A pip-installable Python package and CLI to predict and rank **digestibility of protein sequences** using an ML-powered recommender algorithm.
 
 ## Highlights
-- Inputs: genome/proteome FASTA, single sequences, groups of genomes, metagenomic sets.
-- User specifies gene-calling mode for genome-like inputs: `--organism prok|euk`.
-- Modular steps with clear CLI:
-  - `bitescore pipeline` (end-to-end)
-  - `bitescore load`, `bitescore call-genes`, `bitescore features`, `bitescore rank`, `bitescore report`
-  - `bitescore call-genes` accepts the same `--input`/`--input-type` pairing as the pipeline when you want to run loading and gene-calling together.
-- Optional tools: DIAMOND/BLAST → GO TSV mapping, HMMER (Pfam), InterProScan, CD-HIT clustering, low-complexity masking.
-- Optional AlphaFold lookup by UniProt accession.
-- Gradio **chatbot UI**: `bitescore-chat`.
 
-## Quickstart
+- **Flexible inputs**: genome/proteome FASTA, single sequences, groups of genomes, metagenomic assemblies
+- **Gene calling**: built-in prokaryotic (Prodigal) and eukaryotic (Augustus) gene callers via `--organism prok|euk`
+- **Modular CLI**: run the full pipeline end-to-end or execute individual steps
+- **Optional annotation layers**: DIAMOND/BLAST, GO term mapping, HMMER (Pfam), InterProScan, CD-HIT clustering, low-complexity masking
+- **AlphaFold integration**: optional structure lookup by UniProt accession
+- **Interactive web UI**: Gradio-based chatbot via `bitescore-chat`
+
+## Installation
+
+### With Conda/Mamba (recommended)
+
+This installs Python dependencies **and** external bioinformatics tools (Prodigal, Augustus, DIAMOND, BLAST, HMMER, CD-HIT):
+
 ```bash
 mamba env create -f requirements.yml
 mamba activate bitescore-chat
 pip install -e .
-bitescore pipeline --input data/examples/example_proteome.faa --input-type proteome --organism prok --out results/run1 --train
+```
+
+### With pip only
+
+If you already have the external tools installed or only need proteome-level analysis:
+
+```bash
+pip install -e .
+```
+
+Optional extras:
+
+```bash
+pip install -e ".[go]"   # Gene Ontology support (goatools)
+pip install -e ".[dev]"  # Development tools (pytest, ruff)
+```
+
+## Quickstart
+
+Run the full pipeline on an example proteome:
+
+```bash
+bitescore pipeline \
+  --input data/examples/example_proteome.faa \
+  --input-type proteome \
+  --organism prok \
+  --out results/run1 \
+  --train
+```
+
+## CLI Reference
+
+### End-to-end pipeline
+
+```bash
+bitescore pipeline --input <FILE> --input-type <TYPE> --organism <prok|euk> --out <DIR> [OPTIONS]
+```
+
+### Modular steps
+
+| Command | Description |
+|---|---|
+| `bitescore load` | Load and normalise input sequences |
+| `bitescore call-genes` | Call genes from genome/metagenome inputs |
+| `bitescore features` | Extract the full feature matrix |
+| `bitescore rank` | Train or apply the ranking model |
+| `bitescore report` | Generate a summary report |
+
+`bitescore call-genes` accepts the same `--input`/`--input-type` pairing as the pipeline when you want to run loading and gene-calling together.
+
+### Input types
+
+| Type | Description |
+|---|---|
+| `genome` | Single FASTA genome file |
+| `genomes` | Directory of genome FASTA files |
+| `metagenome` | Metagenomic assembly |
+| `proteome` | Protein FASTA file |
+| `sequences` | Raw sequence strings (one per line) |
+
+### Common options
+
+```
+--organism prok|euk       Gene calling mode (required for genome inputs)
+--threads N               Parallel processing threads
+--config FILE             YAML configuration file
+--train                   Train a demo model on heuristic targets
+--model FILE              Path to a pre-trained .joblib model
+--alphafold               Fetch AlphaFold2 structures from UniProt
+--no-structure            Skip structure features (faster)
+--cluster-cdhit           Pre-cluster sequences with CD-HIT
+--cdhit-threshold FLOAT   Clustering identity threshold (default 0.95)
+--low-complexity          Mask low-complexity regions
+--diamond-db PATH         DIAMOND database for similarity searches
+--blast-db PATH           BLAST database (alternative to DIAMOND)
+--pfam-hmms PATH          Pfam HMM database for domain scans
+--interpro                Run InterProScan
+--go-map PATH             Gene Ontology mapping file (id2go.tsv)
 ```
 
 ## Chat UI
+
+Launch the Gradio chatbot interface:
+
 ```bash
-bitescore-chat   # http://localhost:7860
+bitescore-chat   # opens at http://localhost:7860
 ```
 
-See `resources/README.txt` for optional DBs.
+## Output files
+
+The pipeline writes the following to the output directory:
+
+| File | Description |
+|---|---|
+| `loaded.faa` / `loaded.fna` | Normalised input sequences |
+| `called.faa` | Gene-called proteins (genome inputs) |
+| `clustered.faa` | Deduplicated sequences (if CD-HIT enabled) |
+| `masked.faa` | Low-complexity masked sequences (if enabled) |
+| `features_aa.csv` | Amino acid composition features |
+| `features_regsite.csv` | Protease cleavage site features |
+| `features_structure.csv` | Structural features |
+| `features_function.csv` | Functional annotation features |
+| `features.csv` | Combined feature matrix |
+| `ranked.csv` | Final ranking with digestibility scores |
+| `model.joblib` | Trained ML model (if `--train` used) |
+| `log.txt` | Execution log |
+
+## Optional databases
+
+For full annotation support, download and prepare:
+
+- **`uniprot.dmnd`** -- DIAMOND-formatted UniProt database
+- **`Pfam-A.hmm`** -- Pfam HMM profiles (run `hmmpress` after downloading)
+- **`id2go.tsv`** -- UniProt-to-GO term mapping
+
+See `resources/README.txt` for details.
 
 ## Biological background
 
@@ -34,13 +144,40 @@ Proteins vary widely in how readily gastrointestinal or secreted proteases can l
 
 ## Biology-aware feature set
 
-- **Sequence composition.** bitescore quantifies essential amino acid content and the relative frequency of each residue so that high-value nutritional profiles can be surfaced from large proteomes or metagenomic assemblies.
-- **Physicochemical proxies.** Aromatic content, charge balance, and simple glycosylation site proxies provide context about how resistant a protein might be to specific proteases or post-translational modifications.
-- **Cleavage accessibility.** Counts of Lys/Arg (trypsin) and Phe/Trp/Tyr (chymotrypsin) sites are paired with heuristic exposure and flexibility scores, giving the ML model features that approximate how easily enzymes can reach their preferred motifs.
-- **Functional annotation hooks.** Optional DIAMOND/BLAST searches followed by GO term mapping, Pfam domain scans, and InterProScan integration allow downstream analyses to connect digestibility predictions with biological roles, secretion signals, or enzyme families of interest.
-- **Structural context.** A lightweight structure-aware proxy is cached for every sequence, and when UniProt accessions are detected the pipeline can pull AlphaFold summary statistics (e.g., mean pLDDT) to better interpret disorder or confidence in structural models.
-- **Genome-aware preprocessing.** Built-in gene calling, low-complexity masking, and CD-HIT clustering ensure that only representative, biologically plausible protein sequences contribute to the feature matrix and subsequent ranking.
+- **Sequence composition.** Essential amino acid content and residue frequencies, enabling high-value nutritional profiles to be surfaced from large proteomes or metagenomic assemblies.
+- **Physicochemical proxies.** Aromatic content, charge balance, and glycosylation site proxies provide context about protease resistance and post-translational modifications.
+- **Cleavage accessibility.** Counts of Lys/Arg (trypsin) and Phe/Trp/Tyr (chymotrypsin) sites paired with heuristic exposure and flexibility scores that approximate how easily enzymes can reach their preferred motifs.
+- **Functional annotation hooks.** Optional DIAMOND/BLAST searches, GO term mapping, Pfam domain scans, and InterProScan integration connect digestibility predictions with biological roles and enzyme families.
+- **Structural context.** Lightweight structure-aware proxies cached for every sequence, with optional AlphaFold summary statistics (e.g., mean pLDDT) for interpreting disorder or structural confidence.
+- **Genome-aware preprocessing.** Built-in gene calling, low-complexity masking, and CD-HIT clustering ensure only representative, biologically plausible protein sequences enter the feature matrix.
 
 ## Interpreting digestibility scores
 
 The default ranking model is a random forest regressor that operates on the feature matrix described above. In demonstration mode it self-trains on heuristics emphasizing essential amino acid abundance and trypsin-accessible sites, but in production settings you should retrain the model with empirical digestibility measurements that match your organism, protease cocktail, or processing environment. Predictions are best treated as a prioritization aid: experimental assays (in vitro digestion, animal trials, or proteomics) remain the gold standard for validating protein digestibility. Use the optional annotation layers to connect high-scoring candidates with their biological context before investing in laboratory follow-up.
+
+## Testing
+
+```bash
+pytest tests/ -v
+pytest tests/ --cov=src/bitescore --cov-report=html
+```
+
+## Project structure
+
+```
+src/bitescore/
+  cli.py              CLI entry point (Click)
+  pipeline.py          Core pipeline orchestration
+  report.py            Report generation
+  app/                 Gradio chatbot UI
+  features/            Feature extraction (aa, cleavage, structure, function)
+  gene_callers/        Gene calling (Prodigal, Augustus, ORF fallback)
+  ml/                  Random Forest ranking model
+  tools/               External tool wrappers (BLAST, HMMER, CD-HIT, etc.)
+  io/                  FASTA loaders
+  utils/               Configuration and logging
+```
+
+## License
+
+MIT
