@@ -13,6 +13,7 @@ from .features.extract import (
     compute_regsite_features,
     compute_structure_feature_table,
     compute_function_features,
+    compute_esm_features,
     merge_feature_frames,
 )
 from .ml.rank import rank_sequences
@@ -67,6 +68,10 @@ def path_features_structure(outdir: Path) -> Path:
 
 def path_features_function(outdir: Path) -> Path:
     return outdir / "features_function.csv"
+
+
+def path_features_esm(outdir: Path) -> Path:
+    return outdir / "features_esm.csv"
 
 
 def path_ranked(outdir: Path) -> Path:
@@ -230,6 +235,10 @@ def assemble_feature_tables(outdir: Path) -> pd.DataFrame:
             "Missing feature tables: " + ", ".join(missing) + ". Run the corresponding feature steps first."
         )
     frames = [pd.read_csv(path) for path in required.values()]
+    # ESM features are optional
+    esm_path = path_features_esm(outdir)
+    if esm_path.exists():
+        frames.append(pd.read_csv(esm_path))
     combined = merge_feature_frames(frames)
     combined.to_csv(path_features(outdir), index=False)
     return combined
@@ -295,15 +304,23 @@ def assemble_ranking_features(outdir: Path, overrides: dict | None = None) -> pd
         ),
     }
 
+    # ESM embeddings (optional — include all esm_* columns when present)
+    esm_path = _feature_path("esm", path_features_esm(outdir))
+    if esm_path.exists():
+        esm_df = _load_feature_table(esm_path)
+        esm_cols = [c for c in esm_df.columns if c.startswith("esm_")]
+        if esm_cols:
+            tables["esm"] = (esm_df, esm_cols)
+
     merged: pd.DataFrame | None = None
     for name, (df, required_cols) in tables.items():
         if "id" not in df.columns:
             raise ValueError(f"Feature table '{name}' is missing an 'id' column")
         frame = df.set_index("id").copy()
         present = [c for c in required_cols if c in frame.columns]
-        missing = [c for c in required_cols if c not in frame.columns]
+        missing_cols = [c for c in required_cols if c not in frame.columns]
         subset = frame[present].copy() if present else pd.DataFrame(index=frame.index)
-        for col in missing:
+        for col in missing_cols:
             subset[col] = 0
         if merged is None:
             merged = subset
@@ -397,6 +414,126 @@ def step_features_function(cfg: dict, assemble: bool = True) -> pd.DataFrame:
     return func_df
 
 
+def step_features_esm(cfg: dict, assemble: bool = True) -> pd.DataFrame:
+    """Extract ESM-2 protein language model embeddings."""
+    outdir = _outdir_from_cfg(cfg)
+    log(outdir, "ESM-2 embedding features")
+    input_type = cfg.get("input_type")
+    src = _feature_sequences_for_extraction(cfg, outdir, input_type)
+    recs = _read_fasta(src)
+    esm_df = compute_esm_features(
+        recs,
+        esm_model=cfg.get("esm_model", "esm2_t6_8M_UR50D"),
+        batch_size=cfg.get("esm_batch_size", 8),
+        cache_dir=outdir / "cache",
+    )
+    esm_df.to_csv(path_features_esm(outdir), index=False)
+    log(outdir, f"ESM features saved: {path_features_esm(outdir)}")
+    if assemble and _update_combined_features_if_ready(outdir):
+        log(outdir, f"Combined features saved: {path_features(outdir)}")
+    return esm_df
+
+
+def step_train_mil(cfg: dict):
+    """Train a MIL model on reference food digestibility data."""
+    outdir = _outdir_from_cfg(cfg)
+    log(outdir, "Training MIL digestibility model")
+
+    try:
+        from .ml.mil import train_mil_model, save_mil_model, MILConfig
+        from .ml.digestibility_ref import (
+            get_combined_reference_foods,
+            prepare_food_bags,
+        )
+        from .ml.calibrate import DigestibilityCalibrator, save_calibrator
+    except ImportError as exc:
+        log(outdir, f"MIL training requires PyTorch: {exc}")
+        return
+
+    # Gather reference foods
+    ref_foods = get_combined_reference_foods(
+        user_ref_path=cfg.get("digestibility_ref"),
+        user_comp_path=cfg.get("food_composition"),
+    )
+
+    if len(ref_foods) < 2:
+        log(outdir, "Need at least 2 reference foods for MIL training; skipping.")
+        return
+
+    # Build feature extraction function for reference proteins
+    from .features.extract import (
+        compute_aa_features,
+        compute_regsite_features,
+        compute_structure_feature_table,
+        compute_function_features,
+        compute_esm_features,
+        merge_feature_frames,
+    )
+    from Bio.Seq import Seq
+    from Bio.SeqRecord import SeqRecord
+
+    # Collect feature column names from a dummy run
+    _dummy_rec = SeqRecord(Seq("ACDEFGHIKLMNPQRSTVWY"), id="dummy", description="")
+    _dummy_frames = [
+        compute_aa_features([_dummy_rec]),
+        compute_regsite_features([_dummy_rec]),
+        compute_structure_feature_table([_dummy_rec], structure_enabled=True, alphafold_enabled=False),
+        compute_function_features([_dummy_rec]),
+    ]
+    if cfg.get("esm_enabled"):
+        _dummy_frames.append(compute_esm_features([_dummy_rec], esm_model=cfg.get("esm_model", "esm2_t6_8M_UR50D")))
+    _dummy_combined = merge_feature_frames(_dummy_frames)
+    feature_cols = [c for c in _dummy_combined.columns if c != "id"]
+
+    def _extract_features(protein_id: str, sequence: str):
+        rec = SeqRecord(Seq(sequence), id=protein_id, description="")
+        records = [rec]
+        frames = [
+            compute_aa_features(records),
+            compute_regsite_features(records),
+            compute_structure_feature_table(records, structure_enabled=True, alphafold_enabled=False),
+            compute_function_features(records),
+        ]
+        if cfg.get("esm_enabled"):
+            frames.append(compute_esm_features(
+                records,
+                esm_model=cfg.get("esm_model", "esm2_t6_8M_UR50D"),
+                cache_dir=outdir / "cache",
+            ))
+        combined = merge_feature_frames(frames)
+        for col in feature_cols:
+            if col not in combined.columns:
+                combined[col] = 0
+        return combined[feature_cols].values[0]
+
+    # Prepare food bags
+    food_bags = prepare_food_bags(ref_foods, _extract_features)
+    if len(food_bags) < 2:
+        log(outdir, "Not enough valid food bags for training; skipping MIL.")
+        return
+
+    # Configure and train
+    mil_cfg = MILConfig(
+        hidden_dim=cfg.get("mil_hidden_dim", 256),
+        attention_dim=cfg.get("mil_attention_dim", 128),
+        n_epochs=cfg.get("mil_epochs", 200),
+        learning_rate=cfg.get("mil_lr", 1e-3),
+    )
+
+    model, history = train_mil_model(food_bags, cfg=mil_cfg)
+
+    # Save model
+    mil_path = outdir / "mil_model.pt"
+    save_mil_model(model, mil_cfg, mil_path)
+    log(outdir, f"MIL model saved: {mil_path}")
+
+    # Train epochs info
+    n_epochs = len(history["train_loss"])
+    final_train = history["train_loss"][-1]
+    final_val = history["val_loss"][-1]
+    log(outdir, f"MIL training: {n_epochs} epochs, train_loss={final_train:.6f}, val_loss={final_val:.6f}")
+
+
 def step_features(cfg: dict):
     outdir = _outdir_from_cfg(cfg)
     if cfg.get("cluster_cdhit"):
@@ -410,6 +547,8 @@ def step_features(cfg: dict):
         "structure": step_features_structure,
         "function": step_features_function,
     }
+    if cfg.get("esm_enabled"):
+        feature_funcs["esm"] = step_features_esm
 
     results: Dict[str, pd.DataFrame] = {}
     configured_workers = cfg.get("feature_workers") or len(feature_funcs)
@@ -427,7 +566,10 @@ def step_features(cfg: dict):
             name = futures[future]
             results[name] = future.result()
 
-    ordered = [results[key] for key in ("aa", "regsite", "structure", "function") if key in results]
+    ordered_keys = ["aa", "regsite", "structure", "function"]
+    if "esm" in results:
+        ordered_keys.append("esm")
+    ordered = [results[key] for key in ordered_keys if key in results]
     combined = merge_feature_frames(ordered)
     combined.to_csv(path_features(outdir), index=False)
     log(outdir, f"Combined features saved: {path_features(outdir)}")
@@ -449,17 +591,29 @@ def step_rank(cfg: dict):
     if not feats.exists() and _update_combined_features_if_ready(outdir):
         log(outdir, f"Combined features saved: {feats}")
 
+    # Check for MIL model (trained in this run or provided via config)
+    mil_model_path = cfg.get("mil_model_path")
+    if mil_model_path is None:
+        candidate = outdir / "mil_model.pt"
+        if candidate.exists():
+            mil_model_path = str(candidate)
+
     df = rank_df
     ranked_df, model_path = rank_sequences(
         df,
         model_path=cfg.get("model_path"),
         train_demo=cfg.get("train_demo", False),
-        outdir=outdir
+        outdir=outdir,
+        calibrate=cfg.get("calibrate", True),
+        mil_model_path=mil_model_path,
     )
     ranked_df.to_csv(path_ranked(outdir), index=False)
     log(outdir, f"Ranking saved: {path_ranked(outdir)}")
     if model_path:
         log(outdir, f"Model saved: {model_path}")
+    if cfg.get("calibrate", True):
+        log(outdir, "Scores calibrated to DIAAS scale using reference data")
+
 
 def run_pipeline(cfg: dict):
     outdir = _outdir_from_cfg(cfg)
@@ -468,5 +622,7 @@ def run_pipeline(cfg: dict):
     if cfg["input_type"] in GENOME_INPUT_TYPES:
         step_call_genes(cfg)
     step_features(cfg)
+    if cfg.get("mil_train"):
+        step_train_mil(cfg)
     step_rank(cfg)
     log(outdir, "Pipeline completed")
