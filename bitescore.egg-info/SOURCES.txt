@@ -11,6 +11,9 @@ src/bitescore/__init__.py
 src/bitescore/cli.py
 src/bitescore/pipeline.py
 src/bitescore/report.py
+src/bitescore/api/__init__.py
+src/bitescore/api/main.py
+src/bitescore/api/schemas.py
 src/bitescore/app/__init__.py
 src/bitescore/app/chatbot.py
 src/bitescore/features/__init__.py
@@ -19,6 +22,7 @@ src/bitescore/features/cleavage.py
 src/bitescore/features/extract.py
 src/bitescore/features/function.py
 src/bitescore/features/go.py
+src/bitescore/features/hooks.py
 src/bitescore/features/structure.py
 src/bitescore/gene_callers/__init__.py
 src/bitescore/gene_callers/call.py
@@ -38,6 +42,7 @@ src/bitescore/tools/low_complexity.py
 src/bitescore/utils/__init__.py
 src/bitescore/utils/config.py
 src/bitescore/utils/logging.py
+tests/test_annotation_hooks.py
 tests/test_chatbot_utils.py
 tests/test_features_aa.py
 tests/test_features_function.py
@@ -45,3 +50,4 @@ tests/test_features_regsite.py
 tests/test_features_structure.py
 tests/test_import.py
 tests/test_pipeline_rank_features.py
+tests/test_structure_proxies.py
