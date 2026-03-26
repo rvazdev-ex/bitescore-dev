@@ -1,0 +1,28 @@
+name: bitescore-chat
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - biopython>=1.83
+  - pandas>=2.0
+  - numpy>=1.24
+  - scikit-learn>=1.3
+  - joblib>=1.3
+  - tqdm>=4.66
+  - pyyaml>=6.0
+  - requests>=2.32
+  - click>=8.1
+  - pytest>=7.4
+  - prodigal
+  - augustus
+  - diamond
+  - blast
+  - hmmer
+  - cd-hit
+  - blast-legacy
+  - pip:
+      - goatools>=1.3.1
+      - gradio>=4.38

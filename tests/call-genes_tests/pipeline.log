@@ -1,0 +1,8 @@
+[2025-09-20T12:02:01.986894] Loading inputs
+[2025-09-20T12:02:01.992574] Loaded 2 records -> /home/rvalenciaaz/GIT_FOLDER/bitescore-chat/tests/call-genes_tests/loaded.faa
+[2025-09-20T12:02:01.992644] Gene calling step
+[2025-09-20T12:02:01.992890] Gene calling -> 2 AA sequences -> /home/rvalenciaaz/GIT_FOLDER/bitescore-chat/tests/call-genes_tests/called.faa
+[2025-09-20T12:02:47.897554] Loading inputs
+[2025-09-20T12:02:47.903178] Loaded 2 records -> /home/rvalenciaaz/GIT_FOLDER/bitescore-chat/tests/call-genes_tests/loaded.faa
+[2025-09-20T12:02:47.903254] Gene calling step
+[2025-09-20T12:02:51.061410] Gene calling -> 0 AA sequences -> /home/rvalenciaaz/GIT_FOLDER/bitescore-chat/tests/call-genes_tests/called.faa
