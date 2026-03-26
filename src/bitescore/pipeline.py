@@ -35,15 +35,55 @@ def _loaded_suffix(input_type: str) -> str:
 
 def path_loaded(outdir: Path, input_type: str) -> Path:
     return outdir / f"loaded{_loaded_suffix(input_type)}"
-def path_called(outdir: Path) -> Path: return outdir / "called.faa"
-def path_clustered(outdir: Path) -> Path: return outdir / "clustered.faa"
-def path_masked(outdir: Path) -> Path: return outdir / "masked.faa"
-def path_features(outdir: Path) -> Path: return outdir / "features.csv"
-def path_features_aa(outdir: Path) -> Path: return outdir / "features_aa.csv"
-def path_features_regsite(outdir: Path) -> Path: return outdir / "features_regsite.csv"
-def path_features_structure(outdir: Path) -> Path: return outdir / "features_structure.csv"
-def path_features_function(outdir: Path) -> Path: return outdir / "features_function.csv"
-def path_ranked(outdir: Path) -> Path: return outdir / "ranked.csv"
+
+
+def path_called(outdir: Path) -> Path:
+    return outdir / "called.faa"
+
+
+def path_clustered(outdir: Path) -> Path:
+    return outdir / "clustered.faa"
+
+
+def path_masked(outdir: Path) -> Path:
+    return outdir / "masked.faa"
+
+
+def path_features(outdir: Path) -> Path:
+    return outdir / "features.csv"
+
+
+def path_features_aa(outdir: Path) -> Path:
+    return outdir / "features_aa.csv"
+
+
+def path_features_regsite(outdir: Path) -> Path:
+    return outdir / "features_regsite.csv"
+
+
+def path_features_structure(outdir: Path) -> Path:
+    return outdir / "features_structure.csv"
+
+
+def path_features_function(outdir: Path) -> Path:
+    return outdir / "features_function.csv"
+
+
+def path_ranked(outdir: Path) -> Path:
+    return outdir / "ranked.csv"
+
+
+def _outdir_from_cfg(cfg: dict) -> Path:
+    outdir = Path(cfg["outdir"])
+    outdir.mkdir(parents=True, exist_ok=True)
+    return outdir
+
+
+def _make_logger(outdir: Path):
+    def _logger(message: str):
+        log(outdir, message)
+    return _logger
+
 
 def _write_fasta(records: List[SeqRecord], path: Path):
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -72,7 +112,7 @@ def _resolve_input_type(outdir: Path, configured: str | None) -> str:
     )
 
 def step_load(cfg: dict):
-    outdir = Path(cfg["outdir"]); outdir.mkdir(parents=True, exist_ok=True)
+    outdir = _outdir_from_cfg(cfg)
     log(outdir, "Loading inputs")
     input_type = cfg["input_type"]
     recs = load_inputs(cfg["input_path"], input_type)
@@ -81,7 +121,7 @@ def step_load(cfg: dict):
     log(outdir, f"Loaded {len(recs)} records -> {dest}")
 
 def step_call_genes(cfg: dict):
-    outdir = Path(cfg["outdir"]); outdir.mkdir(parents=True, exist_ok=True)
+    outdir = _outdir_from_cfg(cfg)
     log(outdir, "Gene calling step")
     loaded_override = cfg.get("loaded_path")
     if loaded_override:
@@ -100,7 +140,7 @@ def step_call_genes(cfg: dict):
         log(outdir, f"Input type '{input_type}' does not require gene calling; skipping.")
         return
     recs = _read_fasta(src)
-    pipeline_logger = lambda message: log(outdir, message)
+    pipeline_logger = _make_logger(outdir)
     aa = call_genes_if_needed(recs, input_type, cfg.get("organism"), logger=pipeline_logger)
     dest = path_called(outdir)
     _write_fasta(aa, dest)
@@ -140,7 +180,7 @@ def _feature_sequences_for_extraction(cfg: dict, outdir: Path, input_type: str |
 
 
 def step_features_cluster(cfg: dict):
-    outdir = Path(cfg["outdir"]); outdir.mkdir(parents=True, exist_ok=True)
+    outdir = _outdir_from_cfg(cfg)
     log(outdir, "CD-HIT clustering step")
     input_type = _resolve_input_type(outdir, cfg.get("input_type"))
     src = _feature_base_path(outdir, input_type)
@@ -157,7 +197,7 @@ def step_features_cluster(cfg: dict):
 
 
 def step_features_mask(cfg: dict):
-    outdir = Path(cfg["outdir"]); outdir.mkdir(parents=True, exist_ok=True)
+    outdir = _outdir_from_cfg(cfg)
     log(outdir, "Low-complexity masking step")
     input_type = _resolve_input_type(outdir, cfg.get("input_type"))
     clustered = path_clustered(outdir)
@@ -274,7 +314,7 @@ def assemble_ranking_features(outdir: Path, overrides: dict | None = None) -> pd
 
 
 def step_features_aa(cfg: dict, assemble: bool = True) -> pd.DataFrame:
-    outdir = Path(cfg["outdir"]); outdir.mkdir(parents=True, exist_ok=True)
+    outdir = _outdir_from_cfg(cfg)
     log(outdir, "Amino acid composition features")
     input_type = cfg.get("input_type")
     src = _feature_sequences_for_extraction(cfg, outdir, input_type)
@@ -288,7 +328,7 @@ def step_features_aa(cfg: dict, assemble: bool = True) -> pd.DataFrame:
 
 
 def step_features_regsite(cfg: dict, assemble: bool = True) -> pd.DataFrame:
-    outdir = Path(cfg["outdir"]); outdir.mkdir(parents=True, exist_ok=True)
+    outdir = _outdir_from_cfg(cfg)
     log(outdir, "Protease recognition site features")
     input_type = cfg.get("input_type")
     src = _feature_sequences_for_extraction(cfg, outdir, input_type)
@@ -302,7 +342,7 @@ def step_features_regsite(cfg: dict, assemble: bool = True) -> pd.DataFrame:
 
 
 def step_features_structure(cfg: dict, assemble: bool = True) -> pd.DataFrame:
-    outdir = Path(cfg["outdir"]); outdir.mkdir(parents=True, exist_ok=True)
+    outdir = _outdir_from_cfg(cfg)
     log(outdir, "Cleavage accessibility structure features")
     input_type = cfg.get("input_type")
     src = _feature_sequences_for_extraction(cfg, outdir, input_type)
@@ -326,12 +366,12 @@ def step_features_structure(cfg: dict, assemble: bool = True) -> pd.DataFrame:
 
 
 def step_features_function(cfg: dict, assemble: bool = True) -> pd.DataFrame:
-    outdir = Path(cfg["outdir"]); outdir.mkdir(parents=True, exist_ok=True)
+    outdir = _outdir_from_cfg(cfg)
     log(outdir, "Protein function features")
     input_type = cfg.get("input_type")
     src = _feature_sequences_for_extraction(cfg, outdir, input_type)
     recs = _read_fasta(src)
-    pipeline_logger = lambda message: log(outdir, message)
+    pipeline_logger = _make_logger(outdir)
     func_df = compute_function_features(
         recs,
         go_map_path=cfg.get("go_map"),
@@ -349,7 +389,7 @@ def step_features_function(cfg: dict, assemble: bool = True) -> pd.DataFrame:
 
 
 def step_features(cfg: dict):
-    outdir = Path(cfg["outdir"]); outdir.mkdir(parents=True, exist_ok=True)
+    outdir = _outdir_from_cfg(cfg)
     if cfg.get("cluster_cdhit"):
         step_features_cluster(cfg)
     if cfg.get("low_complexity"):
@@ -384,7 +424,7 @@ def step_features(cfg: dict):
     log(outdir, f"Combined features saved: {path_features(outdir)}")
 
 def step_rank(cfg: dict):
-    outdir = Path(cfg["outdir"]); outdir.mkdir(parents=True, exist_ok=True)
+    outdir = _outdir_from_cfg(cfg)
     try:
         rank_df = assemble_ranking_features(outdir, cfg)
     except FileNotFoundError as exc:
@@ -413,7 +453,7 @@ def step_rank(cfg: dict):
         log(outdir, f"Model saved: {model_path}")
 
 def run_pipeline(cfg: dict):
-    outdir = Path(cfg["outdir"]); outdir.mkdir(parents=True, exist_ok=True)
+    outdir = _outdir_from_cfg(cfg)
     log(outdir, "Starting bitescore pipeline")
     step_load(cfg)
     if cfg["input_type"] in GENOME_INPUT_TYPES:

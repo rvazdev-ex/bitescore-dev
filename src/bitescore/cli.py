@@ -184,6 +184,5 @@ def cmd_rank(model, train, features_aa, features_regsite, features_structure, fe
 @main.command(name="report")
 @common_opts
 def cmd_report(config, outdir, threads):
-    from .report import make_report
     out = make_report(Path(outdir))
     click.echo(f"Report: {out}")

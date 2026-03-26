@@ -792,9 +792,9 @@ def _blastp_link_html(seq_id: str, sequence: Optional[str]) -> str:
         f"{encoded}"
     )
     return (
-        "<a class=\"blastp-link\" href=\"{url}\" target=\"_blank\" "
-        "rel=\"noopener noreferrer\">Run BLASTp on NCBI</a>"
-    ).format(url=url)
+        f"<a class=\"blastp-link\" href=\"{url}\" target=\"_blank\" "
+        f"rel=\"noopener noreferrer\">Run BLASTp on NCBI</a>"
+    )
 
 
 def _analysis_summary(input_type_label: str, pipeline_type: str, organisms: List[str], sequence_count: int, mode: str) -> str:
@@ -824,7 +824,8 @@ def chat_fn(
     history = _normalize_messages(history)
     out_messages: List[dict[str, str]] = []
     tmpdir = Path(tempfile.mkdtemp(prefix="bitescore_chat_"))
-    outdir = tmpdir / "results"; outdir.mkdir(parents=True, exist_ok=True)
+    outdir = tmpdir / "results"
+    outdir.mkdir(parents=True, exist_ok=True)
     input_fasta = tmpdir / "input.faa"
     if files:
         fpath = Path(files[-1])
@@ -1148,7 +1149,7 @@ def build_ui():
         }
     """) as demo:
         # State to track current page
-        current_page = gr.State("main")
+        gr.State("main")
         
         # Header with logo and navigation
         with gr.Row(elem_id="app-header"):
@@ -1176,7 +1177,7 @@ def build_ui():
 
         
         # Page content container
-        with gr.Row(elem_id="page-wrapper") as page_container:
+        with gr.Row(elem_id="page-wrapper"):
             with gr.Column():
                 # Main page content (now empty, will be removed)
                 with gr.Row(visible=False) as main_page:

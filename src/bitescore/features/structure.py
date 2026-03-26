@@ -22,12 +22,18 @@ UNIPROT_RE = re.compile(r"^[A-NR-Z0-9]{6,10}$")
 
 def _cache_read(cache_file: Path):
     if cache_file.exists():
-        try: return json.loads(cache_file.read_text())
-        except: return None
+        try:
+            return json.loads(cache_file.read_text())
+        except (OSError, json.JSONDecodeError):
+            return None
     return None
+
+
 def _cache_write(cache_file: Path, data: Dict):
-    try: cache_file.write_text(json.dumps(data))
-    except: pass
+    try:
+        cache_file.write_text(json.dumps(data))
+    except OSError:
+        pass
 
 def _alphafold_by_uniprot(acc: str):
     url = f"https://alphafold.ebi.ac.uk/api/prediction/{acc}"
@@ -36,7 +42,8 @@ def _alphafold_by_uniprot(acc: str):
         if r.status_code == 200:
             js = r.json()
             hit = js[0] if isinstance(js, list) and js else (js if isinstance(js, dict) else None)
-            if not hit: return None
+            if not hit:
+                return None
             return {
                 "af_uniprot": acc,
                 "af_model_created": hit.get("modelCreatedDate"),
@@ -128,7 +135,8 @@ def structure_features(
     h = hashlib.sha256(seq.encode()).hexdigest()[:12]
     cache_file = cache_dir / f"{h}.json"
     cached = _cache_read(cache_file)
-    if cached: return cached
+    if cached:
+        return cached
     plddt_proxy = 50 + 50*(seq.count('H') + seq.count('P'))/max(len(seq),1)
     data: dict[str, object] = {
         "struct_hash": h,

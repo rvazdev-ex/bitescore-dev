@@ -27,7 +27,7 @@ def simple_orf_caller(records: List[SeqRecord], min_len: int = 90) -> List[SeqRe
                                 pep = translate_orf(orf)
                                 if pep:
                                     aa_records.append(SeqRecord(Seq(pep), id=f"{rec.id}_f{frame}_{i}-{j+3}", description="ORF"))
-                            i = j+3
+                            i = j
                             break
                         j += 3
                 i += 3

@@ -31,10 +31,11 @@ def rank_sequences(features_df: pd.DataFrame, model_path: str | None, train_demo
     if model is None:
         model = default_model()
         if train_demo:
+            _zero = pd.Series(0.0, index=features_df.index)
             y = (
-                0.6*features_df.get("aa_essential_frac", 0) +
-                0.2*features_df.get("trypsin_K_sites", 0) +
-                0.2*features_df.get("trypsin_R_sites", 0)
+                0.6*features_df.get("aa_essential_frac", _zero) +
+                0.2*features_df.get("trypsin_K_sites", _zero) +
+                0.2*features_df.get("trypsin_R_sites", _zero)
             ).values
         else:
             y = np.zeros(len(features_df))
