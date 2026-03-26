@@ -792,9 +792,9 @@ def _blastp_link_html(seq_id: str, sequence: Optional[str]) -> str:
         f"{encoded}"
     )
     return (
-        "<a class=\"blastp-link\" href=\"{url}\" target=\"_blank\" "
-        "rel=\"noopener noreferrer\">Run BLASTp on NCBI</a>"
-    ).format(url=url)
+        f"<a class=\"blastp-link\" href=\"{url}\" target=\"_blank\" "
+        f"rel=\"noopener noreferrer\">Run BLASTp on NCBI</a>"
+    )
 
 
 def _analysis_summary(input_type_label: str, pipeline_type: str, organisms: List[str], sequence_count: int, mode: str) -> str:
