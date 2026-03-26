@@ -55,9 +55,6 @@ Thumbs.db
 # Ruff
 .ruff_cache/
 
-# Gradio
-flagged/
-
 # Model artifacts (large binary files)
 *.joblib
 *.pkl
