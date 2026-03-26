@@ -54,7 +54,7 @@ GENOME_ORGANISM_LABELS: Dict[str, str] = {
 FEATURE_SECTION_TITLES: Dict[str, str] = {
     "aa": "Amino Acid Composition",
     "regsite": "Protease Recognition Sites",
-    "structure": "Cleavage Accessibility",
+    "structure": "Structural Context & Accessibility",
     "function": "Functional Annotations",
 }
 
@@ -1482,7 +1482,7 @@ def build_ui():
                                             interactive=False,
                                             visible=False,
                                         )
-                                    with gr.TabItem("features-structure · Cleavage accessibility"):
+                                    with gr.TabItem("features-structure · Structural Context"):
                                         structure_table = gr.Dataframe(
                                             headers=["Metric", "Value"],
                                             datatype=["str", "str"],
