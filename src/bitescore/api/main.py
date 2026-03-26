@@ -44,7 +44,7 @@ from .schemas import (
     SequenceSummary,
 )
 
-ASSETS_DIR = Path(__file__).parent.parent / "app" / "assets"
+ASSETS_DIR = Path(__file__).parent / "assets"
 EXAMPLES_DIR = Path(__file__).resolve().parents[3] / "data" / "examples"
 FRONTEND_DIR = Path(__file__).resolve().parents[3] / "frontend" / "dist"
 
