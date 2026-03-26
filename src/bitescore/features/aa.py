@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections import Counter
 from math import isclose
 
@@ -112,7 +113,7 @@ def physchem(seq: str):
     length = len(seq)
     aromatics = sum(seq.count(a) for a in "FWY") / max(length,1)
     charge_proxy = (seq.count("K")+seq.count("R")-seq.count("D")-seq.count("E"))/max(length,1)
-    glyco_sites = seq.count("NXT")+seq.count("NXS")
+    glyco_sites = len(re.findall(r'N[^P][ST]', seq))
     return {
         "aromatic_frac": aromatics,
         "charge_proxy": charge_proxy,
