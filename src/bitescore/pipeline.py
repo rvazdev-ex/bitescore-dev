@@ -279,7 +279,15 @@ def assemble_ranking_features(outdir: Path, overrides: dict | None = None) -> pd
         ),
         "structure": (
             _load_feature_table(path_map["structure"]),
-            ["cleavage_site_accessible_fraction"],
+            [
+                "cleavage_site_accessible_fraction",
+                "disorder_propensity_mean",
+                "disorder_prone_frac",
+                "surface_accessibility_proxy",
+                "plddt_mean",
+                "plddt_frac_disordered",
+                "plddt_frac_confident",
+            ],
         ),
         "function": (
             _load_feature_table(path_map["function"]),
