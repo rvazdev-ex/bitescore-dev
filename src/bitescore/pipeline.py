@@ -388,6 +388,7 @@ def step_features_function(cfg: dict, assemble: bool = True) -> pd.DataFrame:
         pfam_hmms=cfg.get("pfam_hmms"),
         run_interpro=cfg.get("interpro", False),
         logger=pipeline_logger,
+        cfg=cfg,
     )
     func_df.to_csv(path_features_function(outdir), index=False)
     log(outdir, f"Functional features saved: {path_features_function(outdir)}")

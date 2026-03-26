@@ -451,7 +451,23 @@ def annotate_sequence(
     seq: str,
     go_records: Dict[str, UniProtRecord],
     accession_hint: Optional[str] = None,
+    hook_evidence: Optional[List[Dict[str, object]]] = None,
 ) -> Dict[str, object]:
+    """Annotate a protein sequence with GO terms from multiple sources.
+
+    Parameters
+    ----------
+    seq : str
+        Protein amino acid sequence.
+    go_records : dict
+        UniProt record map for accession-based GO lookup.
+    accession_hint : str, optional
+        Best-hit accession from DIAMOND/BLAST for direct UniProt lookup.
+    hook_evidence : list of dicts, optional
+        Pre-computed evidence dicts from annotation hooks (DIAMOND, BLAST,
+        Pfam, InterProScan).  These are merged with built-in evidence to
+        produce the final combined annotation.
+    """
     evidence: List[Dict[str, object]] = []
 
     best_match: Optional[Dict[str, object]] = None
@@ -479,6 +495,10 @@ def annotate_sequence(
         evidence.extend(_interpro_evidence(seq))
         evidence.extend(_blast_evidence(seq))
 
+    # Merge evidence from annotation hooks (external tools)
+    if hook_evidence:
+        evidence.extend(hook_evidence)
+
     combined = _combine_evidence(evidence)
     flags = _flag_terms(combined)
     label = _summarise_label(combined, flags)
@@ -499,8 +519,9 @@ def annotation_row(
     seq: str,
     go_map: Dict[str, UniProtRecord],
     accession_hint: Optional[str] = None,
+    hook_evidence: Optional[List[Dict[str, object]]] = None,
 ) -> Dict[str, object]:
-    details = annotate_sequence(seq, go_map, accession_hint=accession_hint)
+    details = annotate_sequence(seq, go_map, accession_hint=accession_hint, hook_evidence=hook_evidence)
     combined = details["combined_terms"]
     top_mf = details["top_mf"] or {}
     top_bp = details["top_bp"] or {}

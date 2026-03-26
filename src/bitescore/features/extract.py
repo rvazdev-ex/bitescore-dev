@@ -7,6 +7,7 @@ from Bio.SeqRecord import SeqRecord
 from .aa import essential_aa_content, physchem
 from .function import annotation_row, load_uniprot_records
 from .cleavage import cleavage_accessibility_scores
+from .hooks import hooks_to_evidence, run_annotation_hooks, HookResult
 from .structure import structure_features
 from ..tools.blast import diamond_top_hits, blastp_top_hits
 from ..tools.hmmer import hmmscan_domains
@@ -83,15 +84,50 @@ def compute_function_features(
     pfam_hmms: str | None = None,
     run_interpro: bool = False,
     logger: Callable[[str], None] | None = None,
+    cfg: dict | None = None,
 ) -> pd.DataFrame:
+    """Compute functional annotation features for protein records.
+
+    When *cfg* is provided, annotation hooks are run in batch mode against
+    all records at once (more efficient for external tools).  The hooks
+    produce per-query evidence that is merged with the built-in annotation
+    logic (UniProt lookup, motif scanning, BLAST reference DB).
+
+    The legacy per-record tool calls (``diamond_top_hits``, ``hmmscan_domains``,
+    ``interproscan``) remain as a fallback when hooks are not configured or
+    when the external tool is unavailable.
+    """
     rows = []
     go_map_path = go_map_path or os.environ.get("BITESCORE_GO_MAP")
     go_records = load_uniprot_records(go_map_path)
 
+    # --- Run annotation hooks in batch (if cfg provided) ---
+    hook_results: dict[str, HookResult] = {}
+    if cfg is not None:
+        hook_cfg = dict(cfg)
+        hook_cfg.setdefault("diamond_db", diamond_db)
+        hook_cfg.setdefault("blast_db", blast_db)
+        hook_cfg.setdefault("pfam_hmms", pfam_hmms)
+        hook_cfg.setdefault("interpro", run_interpro)
+        hook_results = run_annotation_hooks(records, hook_cfg, logger=logger)
+
+    has_hook_hits = any(r.available for r in hook_results.values())
+
     for rec in records:
         seq = str(rec.seq)
         accession_hint = None
-        if (diamond_db or blast_db) and go_records:
+
+        # Resolve best accession hint from hooks or legacy tool calls
+        if has_hook_hits:
+            # Prefer DIAMOND hits, fall back to BLAST
+            for hook_name in ("diamond", "blast"):
+                hr = hook_results.get(hook_name)
+                if hr and hr.available:
+                    hits = hr.hits_by_query.get(rec.id, [])
+                    if hits:
+                        accession_hint = _extract_accession_from_subject(hits[0].subject_id)
+                        break
+        elif (diamond_db or blast_db) and go_records:
             top_hits = None
             if diamond_db:
                 top_hits = diamond_top_hits([rec], diamond_db, max_targets=1, logger=logger)
@@ -100,17 +136,49 @@ def compute_function_features(
             if top_hits:
                 accession_hint = top_hits[0][0].split("|")[-1]
 
-        row = annotation_row(rec.id, seq, go_records, accession_hint=accession_hint)
+        # Convert hook results into evidence dicts for this query
+        hook_evidence = None
+        if has_hook_hits:
+            hook_evidence = hooks_to_evidence(rec.id, hook_results, go_records=go_records)
 
-        if pfam_hmms:
+        row = annotation_row(
+            rec.id, seq, go_records,
+            accession_hint=accession_hint,
+            hook_evidence=hook_evidence,
+        )
+
+        # --- Legacy per-record Pfam domain scan (fallback) ---
+        pfam_hook = hook_results.get("pfam")
+        if pfam_hmms and (pfam_hook is None or pfam_hook.skipped):
             doms = hmmscan_domains([rec], pfam_hmms, logger=logger)
             if doms:
                 row.update({f"pfam_{k}_count": v for k, v in doms.items()})
+        elif pfam_hook and pfam_hook.available:
+            # Aggregate domain counts from hook results
+            hits = pfam_hook.hits_by_query.get(rec.id, [])
+            dom_counts: dict[str, int] = {}
+            for hit in hits:
+                dom_counts[hit.domain_name] = dom_counts.get(hit.domain_name, 0) + 1
+            if dom_counts:
+                row.update({f"pfam_{k}_count": v for k, v in dom_counts.items()})
 
-        if run_interpro:
+        # --- Legacy per-record InterProScan (fallback) ---
+        ipr_hook = hook_results.get("interpro")
+        if run_interpro and (ipr_hook is None or ipr_hook.skipped):
             ipr = interproscan([rec], logger=logger)
             if ipr:
                 row.update(ipr)
+        elif ipr_hook and ipr_hook.available:
+            # Aggregate InterPro counts from hook results
+            hits = ipr_hook.hits_by_query.get(rec.id, [])
+            ipr_counts: dict[str, int] = {}
+            for hit in hits:
+                db_key = f"db_{hit.database}_count"
+                ipr_counts[db_key] = ipr_counts.get(db_key, 0) + 1
+                if hit.ipr_accession:
+                    ipr_counts["interpro_count"] = ipr_counts.get("interpro_count", 0) + 1
+            if ipr_counts:
+                row.update(ipr_counts)
 
         rows.append(row)
 
@@ -139,6 +207,14 @@ def compute_function_features(
         "best_uniprot_entry_type": [],
     }
     return pd.DataFrame(template)
+
+
+def _extract_accession_from_subject(subject_id: str) -> str:
+    """Extract UniProt accession from subject ID (e.g. sp|P00001|NAME -> P00001)."""
+    parts = subject_id.split("|")
+    if len(parts) >= 2:
+        return parts[1]
+    return subject_id.split()[0]
 
 
 def merge_feature_frames(frames: List[pd.DataFrame]) -> pd.DataFrame:
@@ -170,6 +246,7 @@ def compute_features(
     pfam_hmms: str | None = None,
     run_interpro: bool = False,
     threads: int | None = None,
+    cfg: dict | None = None,
 ) -> pd.DataFrame:
     aa_df = compute_aa_features(records)
     reg_df = compute_regsite_features(records)
@@ -187,5 +264,6 @@ def compute_features(
         blast_db=blast_db,
         pfam_hmms=pfam_hmms,
         run_interpro=run_interpro,
+        cfg=cfg,
     )
     return merge_feature_frames([aa_df, reg_df, struct_df, func_df])

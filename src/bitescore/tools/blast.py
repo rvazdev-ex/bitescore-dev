@@ -4,7 +4,7 @@ from pathlib import Path
 import subprocess
 import shutil
 import tempfile
-from typing import Callable, Optional, List
+from typing import Callable, Dict, Optional, List
 
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
@@ -15,6 +15,14 @@ def _write_temp_faa(records: List[SeqRecord]) -> Path:
     tmp.close()
     SeqIO.write(records, tmp.name, "fasta")
     return Path(tmp.name)
+
+
+def _cleanup(*paths: Path):
+    for p in paths:
+        try:
+            p.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def _log(logger: Callable[[str], None] | None, message: str):
@@ -96,6 +104,62 @@ def diamond_top_hits(
             pass
 
 
+def diamond_blastp_detailed(
+    records: List[SeqRecord],
+    db: str,
+    max_targets: int = 5,
+    evalue: float = 1e-5,
+    threads: int = 1,
+    logger: Callable[[str], None] | None = None,
+) -> Optional[Dict[str, List[Dict[str, object]]]]:
+    """Run DIAMOND blastp returning per-query hits with alignment statistics.
+
+    Returns a dict mapping query ID -> list of hit dicts, each containing:
+    subject_id, identity_percent, query_coverage_percent, evalue, bitscore.
+    """
+    exe = shutil.which("diamond")
+    if exe is None:
+        _log(logger, "diamond executable not found; skipping DIAMOND detailed search.")
+        return None
+
+    faa = _write_temp_faa(records)
+    out = Path(faa.parent) / (faa.stem + ".detailed.m8")
+    cmd = [
+        exe, "blastp",
+        "-q", str(faa),
+        "-d", str(db),
+        "-o", str(out),
+        "-f", "6", "qseqid", "sseqid", "pident", "qcovhsp", "evalue", "bitscore",
+        "-k", str(max_targets),
+        "-e", str(evalue),
+        "-p", str(threads),
+    ]
+    _log(logger, "[diamond] command: " + " ".join(cmd))
+
+    try:
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        _log_outputs(logger, "diamond", result.returncode, result.stdout, result.stderr)
+        hits_by_query: Dict[str, List[Dict[str, object]]] = {}
+        for line in out.read_text().splitlines():
+            parts = line.strip().split("\t")
+            if len(parts) < 6:
+                continue
+            qid, sid, pident, qcov, ev, bit = parts[:6]
+            hits_by_query.setdefault(qid, []).append({
+                "subject_id": sid,
+                "identity_percent": float(pident),
+                "query_coverage_percent": float(qcov),
+                "evalue": float(ev),
+                "bitscore": float(bit),
+            })
+        return hits_by_query if hits_by_query else None
+    except subprocess.CalledProcessError as exc:
+        _log_outputs(logger, "diamond", exc.returncode, exc.stdout, exc.stderr)
+        return None
+    finally:
+        _cleanup(faa, out)
+
+
 def blastp_top_hits(
     records: List[SeqRecord],
     db: str,
@@ -136,11 +200,60 @@ def blastp_top_hits(
         _log_outputs(logger, "blastp", exc.returncode, exc.stdout, exc.stderr)
         return None
     finally:
-        try:
-            faa.unlink(missing_ok=True)
-        except OSError:
-            pass
-        try:
-            out.unlink(missing_ok=True)
-        except OSError:
-            pass
+        _cleanup(faa, out)
+
+
+def blastp_detailed(
+    records: List[SeqRecord],
+    db: str,
+    max_targets: int = 5,
+    evalue: float = 1e-5,
+    threads: int = 1,
+    logger: Callable[[str], None] | None = None,
+) -> Optional[Dict[str, List[Dict[str, object]]]]:
+    """Run NCBI blastp returning per-query hits with alignment statistics.
+
+    Returns a dict mapping query ID -> list of hit dicts, each containing:
+    subject_id, identity_percent, query_coverage_percent, evalue, bitscore.
+    """
+    exe = shutil.which("blastp")
+    if exe is None:
+        _log(logger, "blastp executable not found; skipping BLAST detailed search.")
+        return None
+
+    faa = _write_temp_faa(records)
+    out = Path(faa.parent) / (faa.stem + ".detailed.m8")
+    cmd = [
+        exe,
+        "-query", str(faa),
+        "-db", str(db),
+        "-outfmt", "6 qseqid sseqid pident qcovs evalue bitscore",
+        "-max_target_seqs", str(max_targets),
+        "-evalue", str(evalue),
+        "-num_threads", str(threads),
+        "-out", str(out),
+    ]
+    _log(logger, "[blastp] command: " + " ".join(cmd))
+
+    try:
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        _log_outputs(logger, "blastp", result.returncode, result.stdout, result.stderr)
+        hits_by_query: Dict[str, List[Dict[str, object]]] = {}
+        for line in out.read_text().splitlines():
+            parts = line.strip().split("\t")
+            if len(parts) < 6:
+                continue
+            qid, sid, pident, qcov, ev, bit = parts[:6]
+            hits_by_query.setdefault(qid, []).append({
+                "subject_id": sid,
+                "identity_percent": float(pident),
+                "query_coverage_percent": float(qcov),
+                "evalue": float(ev),
+                "bitscore": float(bit),
+            })
+        return hits_by_query if hits_by_query else None
+    except subprocess.CalledProcessError as exc:
+        _log_outputs(logger, "blastp", exc.returncode, exc.stdout, exc.stderr)
+        return None
+    finally:
+        _cleanup(faa, out)
