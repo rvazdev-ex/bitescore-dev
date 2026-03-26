@@ -10,7 +10,6 @@ A pip-installable Python package and CLI to predict and rank **digestibility of 
 - **Optional annotation layers**: DIAMOND/BLAST, GO term mapping, HMMER (Pfam), InterProScan, CD-HIT clustering, low-complexity masking
 - **AlphaFold integration**: optional structure lookup by UniProt accession
 - **Web application**: FastAPI + React dashboard via `bitescore-web` with job tracking, interactive charts, and structure visualization
-- **Interactive chat UI**: Gradio-based chatbot via `bitescore-chat`
 
 ## Installation
 
@@ -20,7 +19,7 @@ This installs Python dependencies **and** external bioinformatics tools (Prodiga
 
 ```bash
 mamba env create -f requirements.yml
-mamba activate bitescore-chat
+mamba activate bitescore
 pip install -e .
 ```
 
@@ -125,14 +124,6 @@ npm run dev       # Vite dev server with hot reload
 npm run build     # Production build
 ```
 
-## Chat UI
-
-Launch the Gradio chatbot interface:
-
-```bash
-bitescore-chat   # opens at http://localhost:7860
-```
-
 ## Output files
 
 The pipeline writes the following to the output directory:
@@ -193,8 +184,7 @@ src/bitescore/
   cli.py              CLI entry point (Click)
   pipeline.py          Core pipeline orchestration
   report.py            Report generation
-  api/                 FastAPI REST backend
-  app/                 Gradio chatbot UI
+  api/                 FastAPI REST backend + static assets
   features/            Feature extraction (aa, cleavage, structure, function)
   gene_callers/        Gene calling (Prodigal, Augustus, ORF fallback)
   ml/                  Random Forest ranking model
