@@ -122,6 +122,32 @@ bitescore pipeline --input <FILE> --input-type <TYPE> --organism <prok|euk> --ou
 --food-composition PATH       CSV with protein abundance per food
 ```
 
+### LocalColabFold (optional, for 3D structure prediction)
+
+`bitescore` can run local structure prediction through `localcolabfold` when available.
+
+1. Install and verify LocalColabFold:
+   ```bash
+   localcolabfold --help
+   ```
+2. If the binary is not on your `PATH`, set:
+   ```bash
+   export LOCALCOLABFOLD_BIN=/absolute/path/to/localcolabfold
+   ```
+3. Run with structure + AlphaFold enabled:
+   ```bash
+   bitescore pipeline \
+     --input data/examples/example_proteome.faa \
+     --input-type proteome \
+     --out results/af_run \
+     --alphafold
+   ```
+
+Notes:
+- AlphaFold DB lookup uses UniProt-like FASTA IDs (for example: `sp|P12345|...`).
+- LocalColabFold results are cached under `<outdir>/cache/localcolabfold/`.
+- Confirm outputs in `features_structure.csv` (`structure_source`, `predicted_structure_path`, `plddt_*`).
+
 ## Web Application
 
 Launch the FastAPI backend with the React frontend:
@@ -135,6 +161,10 @@ The web app provides:
 - **Predict page** -- upload FASTA files or paste sequences and run the pipeline from the browser
 - **Results page** -- interactive charts (Chart.js) and a sortable feature table for ranked proteins
 - **About page** -- background on the scoring methodology
+
+On the **Predict** page, use **Structural Context** to:
+- enable/disable structure features
+- enable AlphaFold lookup (sent as analysis options to backend)
 
 ### Frontend development
 
