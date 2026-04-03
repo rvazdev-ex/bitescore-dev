@@ -34,6 +34,8 @@ export default function PredictPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [examples, setExamples] = useState<ExampleInfo[]>([]);
+  const [structureEnabled, setStructureEnabled] = useState(true);
+  const [alphafoldEnabled, setAlphafoldEnabled] = useState(false);
 
   const isGenome = ["genome", "metagenome"].includes(inputType);
 
@@ -91,6 +93,10 @@ export default function PredictPage() {
         organisms,
         sequences: sequences || undefined,
         file: file || undefined,
+        options: {
+          no_structure: !structureEnabled,
+          alphafold: structureEnabled && alphafoldEnabled,
+        },
       });
       navigate(`/results/${result.job_id}`);
     } catch (err) {
@@ -315,6 +321,53 @@ export default function PredictPage() {
             <p className="text-sm text-red-700">{error}</p>
           </div>
         )}
+
+        {/* Step 4: Structural Context */}
+        <div className="card p-6">
+          <h2 className="text-sm font-semibold text-brand-400 uppercase tracking-wider mb-4">
+            Step 4 &mdash; Structural Context
+          </h2>
+          <div className="space-y-4">
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={structureEnabled}
+                onChange={(e) => {
+                  const enabled = e.target.checked;
+                  setStructureEnabled(enabled);
+                  if (!enabled) setAlphafoldEnabled(false);
+                }}
+              />
+              <div>
+                <p className="text-sm font-medium text-brand-700">
+                  Enable structure features
+                </p>
+                <p className="text-xs text-brand-400">
+                  Computes sequence structural proxies and optional 3D structure-derived metrics.
+                </p>
+              </div>
+            </label>
+
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={alphafoldEnabled}
+                disabled={!structureEnabled}
+                onChange={(e) => setAlphafoldEnabled(e.target.checked)}
+              />
+              <div>
+                <p className={clsx("text-sm font-medium", structureEnabled ? "text-brand-700" : "text-brand-300")}>
+                  Enable AlphaFold lookup
+                </p>
+                <p className={clsx("text-xs", structureEnabled ? "text-brand-400" : "text-brand-300")}>
+                  Uses UniProt-like FASTA IDs (e.g. sp|P12345|...) to fetch AlphaFold metadata.
+                </p>
+              </div>
+            </label>
+          </div>
+        </div>
 
         {/* Submit */}
         <button
