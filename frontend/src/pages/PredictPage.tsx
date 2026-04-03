@@ -344,7 +344,7 @@ export default function PredictPage() {
                   Enable structure features
                 </p>
                 <p className="text-xs text-brand-400">
-                  Computes sequence structural proxies and optional 3D structure-derived metrics.
+                  Computes structure-related features from sequence and optional 3D structure-derived metrics.
                 </p>
               </div>
             </label>

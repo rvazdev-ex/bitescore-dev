@@ -144,7 +144,7 @@ bitescore pipeline --input <FILE> --input-type <TYPE> --organism <prok|euk> --ou
    ```
 
 Notes:
-- AlphaFold DB lookup uses UniProt-like FASTA IDs (for example: `sp|P12345|...`).
+- AlphaFold DB lookup uses UniProt-like FASTA IDs (for example: `sp|P12345|PROT_HUMAN`).
 - LocalColabFold results are cached under `<outdir>/cache/localcolabfold/`.
 - Confirm outputs in `features_structure.csv` (`structure_source`, `predicted_structure_path`, `plddt_*`).
 
