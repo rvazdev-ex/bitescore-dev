@@ -25,6 +25,12 @@ export interface SequenceDetail {
 export interface JobStatus {
   job_id: string;
   status: "pending" | "running" | "completed" | "failed";
+  structure_status?: "pending" | "running" | "completed" | "failed" | "disabled";
+  structure_error?: string | null;
+  structure_summary?: {
+    predicted_count: number;
+    total_sequences: number;
+  } | null;
   input_type: string;
   organisms: string[];
   sequence_count: number;
@@ -46,4 +52,21 @@ export interface ProgressUpdate {
   status: string;
   percent: number;
   description: string;
+}
+
+export interface LocalColabFoldRuntimeStatus {
+  available: boolean;
+  binary: string;
+  resolved_path: string | null;
+  env_override: string | null;
+}
+
+export interface LocalColabFoldIntegrationStatus {
+  integration: string;
+  runtime: LocalColabFoldRuntimeStatus;
+  defaults: {
+    localcolabfold_timeout: number;
+    option_keys: string[];
+  };
+  notes: string[];
 }

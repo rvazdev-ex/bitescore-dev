@@ -6,13 +6,16 @@ import {
   Play,
   Loader2,
   AlertCircle,
-  ChevronDown,
   Sparkles,
   X,
 } from "lucide-react";
 import clsx from "clsx";
-import { startAnalysis, fetchExamples } from "../api/client";
-import type { ExampleInfo } from "../types";
+import {
+  fetchExamples,
+  fetchLocalColabFoldIntegration,
+  startAnalysis,
+} from "../api/client";
+import type { ExampleInfo, LocalColabFoldIntegrationStatus } from "../types";
 
 const INPUT_TYPES = [
   { value: "proteome", label: "Proteomic", description: "Protein FASTA (.faa)" },
@@ -34,11 +37,25 @@ export default function PredictPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [examples, setExamples] = useState<ExampleInfo[]>([]);
+  const [enableStructurePrediction, setEnableStructurePrediction] = useState(true);
+  const [localColabFold, setLocalColabFold] =
+    useState<LocalColabFoldIntegrationStatus | null>(null);
+  const [localColabFoldError, setLocalColabFoldError] = useState<string | null>(null);
 
   const isGenome = ["genome", "metagenome"].includes(inputType);
 
   useEffect(() => {
     fetchExamples().then(setExamples).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetchLocalColabFoldIntegration()
+      .then(setLocalColabFold)
+      .catch((err) => {
+        setLocalColabFoldError(
+          err instanceof Error ? err.message : "LocalColabFold check failed"
+        );
+      });
   }, []);
 
   const addOrganism = () => {
@@ -91,6 +108,15 @@ export default function PredictPage() {
         organisms,
         sequences: sequences || undefined,
         file: file || undefined,
+        options: {
+          no_structure: !enableStructurePrediction,
+          ...(enableStructurePrediction && localColabFold
+            ? {
+                localcolabfold_timeout:
+                  localColabFold.defaults.localcolabfold_timeout,
+              }
+            : {}),
+        },
       });
       navigate(`/results/${result.job_id}`);
     } catch (err) {
@@ -109,6 +135,32 @@ export default function PredictPage() {
           Upload sequences, configure your analysis, and get per-protein
           digestibility scores.
         </p>
+      </div>
+
+      <div
+        className={clsx(
+          "mb-6 p-4 rounded-xl border text-sm",
+          localColabFold?.runtime.available
+            ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+            : "bg-amber-50 border-amber-200 text-amber-800"
+        )}
+      >
+        <p className="font-medium">
+          Ubuntu LocalColabFold:{" "}
+          {localColabFold
+            ? localColabFold.runtime.available
+              ? "Ready"
+              : "Not detected"
+            : "Checking..."}
+        </p>
+        {localColabFold?.runtime.resolved_path && (
+          <p className="text-xs mt-1 break-all">
+            Binary: {localColabFold.runtime.resolved_path}
+          </p>
+        )}
+        {!localColabFold && localColabFoldError && (
+          <p className="text-xs mt-1">{localColabFoldError}</p>
+        )}
       </div>
 
       <div className="space-y-6">
@@ -285,6 +337,25 @@ export default function PredictPage() {
               if (e.target.value) setFile(null);
             }}
           />
+
+          <div className="mt-4 p-3 rounded-xl border border-brand-100 bg-white">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={enableStructurePrediction}
+                onChange={(e) => setEnableStructurePrediction(e.target.checked)}
+              />
+              <div>
+                <p className="text-sm font-medium text-brand-700">
+                  Run structure prediction (LocalColabFold)
+                </p>
+                <p className="text-xs text-brand-400">
+                  Disable this to skip structure prediction for faster runs.
+                </p>
+              </div>
+            </label>
+          </div>
 
           {/* Examples */}
           {examples.length > 0 && (

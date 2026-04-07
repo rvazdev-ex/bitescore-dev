@@ -1,10 +1,21 @@
-import type { ExampleInfo, JobStatus, SequenceDetail } from "../types";
+import type {
+  ExampleInfo,
+  JobStatus,
+  LocalColabFoldIntegrationStatus,
+  SequenceDetail,
+} from "../types";
 
 const BASE = "";
 
 export async function fetchExamples(): Promise<ExampleInfo[]> {
   const res = await fetch(`${BASE}/api/examples`);
   if (!res.ok) throw new Error("Failed to fetch examples");
+  return res.json();
+}
+
+export async function fetchLocalColabFoldIntegration(): Promise<LocalColabFoldIntegrationStatus> {
+  const res = await fetch(`${BASE}/api/integrations/localcolabfold`);
+  if (!res.ok) throw new Error("Failed to fetch LocalColabFold integration status");
   return res.json();
 }
 
@@ -54,6 +65,7 @@ export async function fetchStructurePdb(
   const res = await fetch(
     `${BASE}/api/jobs/${jobId}/sequence/${encodeURIComponent(seqId)}/structure`
   );
+  if (res.status === 202) return null;
   if (!res.ok) return null;
   const data = await res.json();
   return data.pdb ?? null;

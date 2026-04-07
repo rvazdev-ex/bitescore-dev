@@ -1,0 +1,12 @@
+2026-04-07 16:35:59,648 Running colabfold 1.6.1 (9712f2ff262d3977d571919317e06cc96c29cd95)
+2026-04-07 16:36:00,159 Running on GPU
+2026-04-07 16:36:00,236 Found 5 citations for tools or databases
+2026-04-07 16:36:00,237 Query 1/1: t (length 27)
+2026-04-07 16:36:01,237 Sleeping for 7s. Reason: PENDING
+2026-04-07 16:36:10,990 Setting max_seq=2, max_extra_seq=1
+2026-04-07 16:36:46,692 alphafold2_ptm_model_1_seed_000 recycle=0 pLDDT=74 pTM=0.301
+2026-04-07 16:36:59,702 alphafold2_ptm_model_1_seed_000 recycle=1 pLDDT=74.8 pTM=0.303 tol=0.965
+2026-04-07 16:36:59,702 alphafold2_ptm_model_1_seed_000 took 42.5s (1 recycles)
+2026-04-07 16:36:59,707 reranking models by 'plddt' metric
+2026-04-07 16:36:59,707 rank_001_alphafold2_ptm_model_1_seed_000 pLDDT=74.8 pTM=0.303
+2026-04-07 16:36:59,894 Done

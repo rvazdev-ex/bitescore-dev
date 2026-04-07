@@ -28,7 +28,10 @@ export function useJobPoller(jobId: string | null, intervalMs = 1500) {
         const status = await fetchJobStatus(jobId);
         if (!active) return;
         setJob(status);
-        if (status.status === "completed" || status.status === "failed") {
+        const structureRunning =
+          status.status === "completed" &&
+          (status.structure_status === "pending" || status.structure_status === "running");
+        if ((status.status === "completed" && !structureRunning) || status.status === "failed") {
           stop();
           if (status.status === "failed") {
             setError(status.error ?? "Analysis failed");

@@ -379,6 +379,8 @@ def step_features_structure(cfg: dict, assemble: bool = True) -> pd.DataFrame:
         alphafold_enabled=cfg.get("alphafold_enabled", False),
         cache_dir=outdir / "cache",
         threads=cfg.get("threads"),
+        localcolabfold_timeout=cfg.get("localcolabfold_timeout"),
+        localcolabfold_bin=cfg.get("localcolabfold_bin"),
     )
     struct_df.to_csv(path_features_structure(outdir), index=False)
     if structure_enabled:
@@ -477,7 +479,13 @@ def step_train_mil(cfg: dict):
     _dummy_frames = [
         compute_aa_features([_dummy_rec]),
         compute_regsite_features([_dummy_rec]),
-        compute_structure_feature_table([_dummy_rec], structure_enabled=True, alphafold_enabled=False),
+        compute_structure_feature_table(
+            [_dummy_rec],
+            structure_enabled=True,
+            alphafold_enabled=False,
+            localcolabfold_timeout=cfg.get("localcolabfold_timeout"),
+            localcolabfold_bin=cfg.get("localcolabfold_bin"),
+        ),
         compute_function_features([_dummy_rec]),
     ]
     if cfg.get("esm_enabled"):
@@ -491,7 +499,13 @@ def step_train_mil(cfg: dict):
         frames = [
             compute_aa_features(records),
             compute_regsite_features(records),
-            compute_structure_feature_table(records, structure_enabled=True, alphafold_enabled=False),
+            compute_structure_feature_table(
+                records,
+                structure_enabled=True,
+                alphafold_enabled=False,
+                localcolabfold_timeout=cfg.get("localcolabfold_timeout"),
+                localcolabfold_bin=cfg.get("localcolabfold_bin"),
+            ),
             compute_function_features(records),
         ]
         if cfg.get("esm_enabled"):

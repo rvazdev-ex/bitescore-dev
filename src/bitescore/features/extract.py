@@ -51,6 +51,8 @@ def compute_structure_feature_table(
     alphafold_enabled: bool = False,
     cache_dir: Path | None = None,
     threads: int | None = None,
+    localcolabfold_timeout: int | None = None,
+    localcolabfold_bin: str | None = None,
 ) -> pd.DataFrame:
     cache_dir = Path(cache_dir or ".cache")
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -63,14 +65,16 @@ def compute_structure_feature_table(
         seq = str(rec.seq)
         row = {"id": rec.id}
         row.update(
-            structure_features(
-                seq,
-                rec.id,
-                alphafold_enabled,
-                cache_dir,
-                threads=threads,
+                structure_features(
+                    seq,
+                    rec.id,
+                    alphafold_enabled,
+                    cache_dir,
+                    threads=threads,
+                    localcolabfold_timeout=localcolabfold_timeout,
+                    localcolabfold_bin=localcolabfold_bin,
+                )
             )
-        )
         rows.append(row)
     if rows:
         return pd.DataFrame(rows)

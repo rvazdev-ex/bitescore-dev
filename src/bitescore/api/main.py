@@ -24,6 +24,8 @@ from Bio.SeqRecord import SeqRecord
 from ..pipeline import (
     GENOME_INPUT_TYPES,
     run_pipeline,
+    step_features_structure,
+    step_rank,
     path_ranked,
     path_features_aa,
     path_features_regsite,
@@ -34,6 +36,7 @@ from ..pipeline import (
     path_clustered,
     path_called,
 )
+from ..tools.localcolabfold import localcolabfold_status
 from ..utils.config import load_config
 from .schemas import (
     AnalysisResult,
@@ -182,6 +185,21 @@ def _run_pipeline_sync(
     outdir: Path,
     opts: dict,
 ) -> Dict[str, Any]:
+    raw_timeout = opts.get("localcolabfold_timeout")
+    localcolabfold_timeout = None
+    if raw_timeout is not None:
+        try:
+            parsed_timeout = int(raw_timeout)
+            if parsed_timeout > 0:
+                localcolabfold_timeout = parsed_timeout
+        except (TypeError, ValueError):
+            localcolabfold_timeout = None
+
+    raw_binary = opts.get("localcolabfold_bin")
+    localcolabfold_bin = str(raw_binary).strip() if raw_binary is not None else None
+    if localcolabfold_bin == "":
+        localcolabfold_bin = None
+
     overrides = dict(
         input_path=str(input_path),
         input_type=input_type,
@@ -197,12 +215,65 @@ def _run_pipeline_sync(
         cluster_cdhit=bool(opts.get("cluster_cdhit", False)),
         cdhit_threshold=opts.get("cdhit_threshold"),
         low_complexity=bool(opts.get("low_complexity", False)),
+        localcolabfold_timeout=localcolabfold_timeout,
+        localcolabfold_bin=localcolabfold_bin,
         train_demo=True,
     )
     cfg = load_config(None, overrides)
     run_pipeline(cfg)
     resolved_input_type = str(cfg.get("input_type") or input_type or "proteome")
     return _collect_pipeline_outputs(Path(cfg["outdir"]), resolved_input_type)
+
+
+def _run_structure_phase_sync(
+    input_path: Path,
+    input_type: str,
+    organism: str | None,
+    outdir: Path,
+    opts: dict,
+) -> Dict[str, Any]:
+    raw_timeout = opts.get("localcolabfold_timeout")
+    localcolabfold_timeout = None
+    if raw_timeout is not None:
+        try:
+            parsed_timeout = int(raw_timeout)
+            if parsed_timeout > 0:
+                localcolabfold_timeout = parsed_timeout
+        except (TypeError, ValueError):
+            localcolabfold_timeout = None
+
+    raw_binary = opts.get("localcolabfold_bin")
+    localcolabfold_bin = str(raw_binary).strip() if raw_binary is not None else None
+    if localcolabfold_bin == "":
+        localcolabfold_bin = None
+
+    overrides = dict(
+        input_path=str(input_path),
+        input_type=input_type,
+        organism=organism,
+        outdir=str(outdir),
+        structure_enabled=True,
+        alphafold_enabled=bool(opts.get("alphafold", False)),
+        localcolabfold_timeout=localcolabfold_timeout,
+        localcolabfold_bin=localcolabfold_bin,
+    )
+    cfg = load_config(None, overrides)
+    step_features_structure(cfg, assemble=True)
+    step_rank(cfg)
+    resolved_input_type = str(cfg.get("input_type") or input_type or "proteome")
+    return _collect_pipeline_outputs(Path(cfg["outdir"]), resolved_input_type)
+
+
+def _count_predicted_structures(outputs: Dict[str, Any]) -> tuple[int, int]:
+    features = outputs.get("features", {}) or {}
+    struct_df = features.get("structure")
+    if struct_df is None or getattr(struct_df, "empty", True):
+        return (0, 0)
+    total = int(len(struct_df))
+    if "predicted_structure_path" not in struct_df.columns:
+        return (0, total)
+    predicted = int(struct_df["predicted_structure_path"].notna().sum())
+    return (predicted, total)
 
 
 async def _broadcast_progress(job_id: str, percent: float, description: str, status: AnalysisStatus):
@@ -405,6 +476,8 @@ async def start_analysis(
 
     _jobs[job_id] = {
         "status": AnalysisStatus.pending,
+        "structure_status": "pending" if not parsed_options.get("no_structure", False) else "disabled",
+        "structure_error": None,
         "input_fasta": input_fasta,
         "input_type": pipeline_input_type,
         "organism": organism,
@@ -422,24 +495,122 @@ async def start_analysis(
     return {"job_id": job_id, "status": "pending"}
 
 
+@app.get("/api/integrations/localcolabfold")
+async def get_localcolabfold_integration_status():
+    status = localcolabfold_status()
+    return {
+        "integration": "localcolabfold",
+        "runtime": status,
+        "defaults": {
+            "localcolabfold_timeout": 1800,
+            "option_keys": ["localcolabfold_timeout", "localcolabfold_bin"],
+        },
+        "notes": [
+            "Set LOCALCOLABFOLD_BIN for global binary override.",
+            "Per-job options are passed via /api/analyze form field 'options' as JSON.",
+        ],
+    }
+
+
 def _run_job(job_id: str):
     job = _jobs.get(job_id)
     if not job:
         return
     job["status"] = AnalysisStatus.running
     try:
-        pipeline_outputs = _run_pipeline_sync(
-            job["input_fasta"],
-            job["input_type"],
-            job["organism"],
-            job["outdir"],
-            job["options"],
-        )
-        job["result"] = pipeline_outputs
-        job["status"] = AnalysisStatus.completed
+        options = dict(job.get("options") or {})
+        structure_requested = not bool(options.get("no_structure", False))
+
+        asyncio.run(_broadcast_progress(job_id, 10.0, "Pipeline started", AnalysisStatus.running))
+
+        if structure_requested:
+            fast_options = dict(options)
+            fast_options["no_structure"] = True
+            pipeline_outputs = _run_pipeline_sync(
+                job["input_fasta"],
+                job["input_type"],
+                job["organism"],
+                job["outdir"],
+                fast_options,
+            )
+            job["result"] = pipeline_outputs
+            job["status"] = AnalysisStatus.completed
+            job["structure_status"] = "running"
+            asyncio.run(
+                _broadcast_progress(
+                    job_id,
+                    85.0,
+                    "Core analysis ready; structure prediction still running",
+                    AnalysisStatus.completed,
+                )
+            )
+
+            try:
+                structure_outputs = _run_structure_phase_sync(
+                    job["input_fasta"],
+                    job["input_type"],
+                    job["organism"],
+                    job["outdir"],
+                    options,
+                )
+                job["result"] = structure_outputs
+                predicted_count, total_count = _count_predicted_structures(structure_outputs)
+                if predicted_count > 0:
+                    job["structure_status"] = "completed"
+                    job["structure_error"] = None
+                else:
+                    job["structure_status"] = "failed"
+                    job["structure_error"] = (
+                        "Structure prediction finished but no predicted structures were produced. "
+                        "Verify LOCALCOLABFOLD_BIN, runtime dependencies, and pipeline logs."
+                    )
+                job["structure_summary"] = {
+                    "predicted_count": predicted_count,
+                    "total_sequences": total_count,
+                }
+            except Exception as structure_exc:
+                job["structure_status"] = "failed"
+                job["structure_error"] = str(structure_exc)
+
+            asyncio.run(
+                _broadcast_progress(
+                    job_id,
+                    100.0,
+                    "Analysis complete",
+                    AnalysisStatus.completed,
+                )
+            )
+        else:
+            pipeline_outputs = _run_pipeline_sync(
+                job["input_fasta"],
+                job["input_type"],
+                job["organism"],
+                job["outdir"],
+                options,
+            )
+            job["result"] = pipeline_outputs
+            job["status"] = AnalysisStatus.completed
+            job["structure_status"] = "disabled"
+            job["structure_summary"] = {"predicted_count": 0, "total_sequences": len(job.get("records", []))}
+            asyncio.run(
+                _broadcast_progress(
+                    job_id,
+                    100.0,
+                    "Analysis complete",
+                    AnalysisStatus.completed,
+                )
+            )
     except Exception as exc:
         job["error"] = str(exc)
         job["status"] = AnalysisStatus.failed
+        asyncio.run(
+            _broadcast_progress(
+                job_id,
+                100.0,
+                "Analysis failed",
+                AnalysisStatus.failed,
+            )
+        )
         traceback.print_exc()
 
 
@@ -452,6 +623,9 @@ async def get_job_status(job_id: str):
     response: Dict[str, Any] = {
         "job_id": job_id,
         "status": job["status"].value,
+        "structure_status": job.get("structure_status", "disabled"),
+        "structure_error": job.get("structure_error"),
+        "structure_summary": job.get("structure_summary"),
         "input_type": job["input_type"],
         "organisms": job.get("organisms", []),
         "sequence_count": len(job.get("records", [])),
@@ -556,6 +730,10 @@ async def get_sequence_structure(job_id: str, seq_id: str):
         raise HTTPException(status_code=404, detail="Job not found")
     if job["status"] != AnalysisStatus.completed:
         raise HTTPException(status_code=400, detail="Job not yet completed")
+    if job.get("structure_status") in {"pending", "running"}:
+        raise HTTPException(status_code=202, detail="Structure prediction in progress")
+    if job.get("structure_status") == "failed":
+        raise HTTPException(status_code=503, detail=job.get("structure_error") or "Structure prediction failed")
 
     features = job.get("result", {}).get("features", {}) or {}
     pdb_text = _structure_pdb_text(features, seq_id)

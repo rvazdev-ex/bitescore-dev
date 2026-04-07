@@ -454,6 +454,8 @@ def structure_features(
     alphafold_enabled: bool,
     cache_dir: Path,
     threads: int | None = None,
+    localcolabfold_timeout: int | None = None,
+    localcolabfold_bin: str | None = None,
 ) -> dict:
     """Compute all structure-related features for a single sequence.
 
@@ -490,7 +492,12 @@ def structure_features(
 
     # Layer 3: LocalColabFold structure prediction
     local_cache = cache_dir / LOCALCOLABFOLD_CACHE
-    pdb_path = predict_structure(seq, seq_id, local_cache, threads=threads)
+    predict_kwargs: dict[str, object] = {}
+    if localcolabfold_timeout is not None:
+        predict_kwargs["timeout_seconds"] = localcolabfold_timeout
+    if localcolabfold_bin:
+        predict_kwargs["binary"] = localcolabfold_bin
+    pdb_path = predict_structure(seq, seq_id, local_cache, threads=threads, **predict_kwargs)
     residues = []
     if pdb_path is not None:
         residues = _load_residue_table(pdb_path)

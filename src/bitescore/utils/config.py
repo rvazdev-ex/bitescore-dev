@@ -29,6 +29,8 @@ DEFAULTS = {
     "tmhmm": False,
     "signalp": False,
     "threads": 1,
+    "localcolabfold_timeout": 1800,
+    "localcolabfold_bin": None,
     "model_path": None,
     "loaded_path": None,
     "feature_sequences": None,

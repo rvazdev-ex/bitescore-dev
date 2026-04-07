@@ -42,6 +42,9 @@ export default function ResultsPage() {
   const isRunning = job?.status === "pending" || job?.status === "running";
   const isComplete = job?.status === "completed";
   const isFailed = job?.status === "failed";
+  const structureRunning =
+    isComplete &&
+    (job?.structure_status === "pending" || job?.structure_status === "running");
 
   // Auto-select first sequence when results arrive
   useEffect(() => {
@@ -54,18 +57,22 @@ export default function ResultsPage() {
   useEffect(() => {
     if (!jobId || !selectedSeqId || !isComplete) return;
     setLoadingDetail(true);
-    setPdbText(null);
+    if (!structureRunning) {
+      setPdbText(null);
+    }
     Promise.all([
       fetchSequenceDetail(jobId, selectedSeqId),
-      fetchStructurePdb(jobId, selectedSeqId),
+      structureRunning ? Promise.resolve(null) : fetchStructurePdb(jobId, selectedSeqId),
     ])
       .then(([d, pdb]) => {
         setDetail(d);
-        setPdbText(pdb);
+        if (!structureRunning) {
+          setPdbText(pdb);
+        }
       })
       .catch(() => {})
       .finally(() => setLoadingDetail(false));
-  }, [jobId, selectedSeqId, isComplete]);
+  }, [jobId, selectedSeqId, isComplete, structureRunning]);
 
   const progressPercent = isRunning
     ? job?.status === "pending"
@@ -124,6 +131,25 @@ export default function ResultsPage() {
           <div className="max-w-md mx-auto">
             <ProgressBar percent={progressPercent} />
           </div>
+        </div>
+      )}
+
+      {isComplete && structureRunning && (
+        <div className="card p-4 mb-6 border-amber-200 bg-amber-50/50">
+          <p className="text-sm text-amber-800 font-medium">
+            Core results are ready. Structure prediction is still running in the background.
+          </p>
+        </div>
+      )}
+
+      {isComplete && job?.structure_status === "failed" && (
+        <div className="card p-4 mb-6 border-red-200 bg-red-50/50">
+          <p className="text-sm text-red-800 font-medium">
+            Structure prediction failed.
+          </p>
+          <p className="text-sm text-red-700 mt-1">
+            {job.structure_error || "No structure files were produced."}
+          </p>
         </div>
       )}
 
@@ -293,14 +319,25 @@ export default function ResultsPage() {
                 </div>
 
                 {/* Structure viewer */}
-                {detail.structure_available && pdbText && (
-                  <div className="card p-6">
-                    <h3 className="text-sm font-semibold text-brand-400 uppercase tracking-wider mb-4">
-                      Predicted Structure
-                    </h3>
-                    <StructureViewer pdbText={pdbText} seqId={detail.id} />
-                  </div>
-                )}
+                 {detail.structure_available && pdbText && (
+                   <div className="card p-6">
+                     <h3 className="text-sm font-semibold text-brand-400 uppercase tracking-wider mb-4">
+                       Predicted Structure
+                     </h3>
+                     <StructureViewer pdbText={pdbText} seqId={detail.id} />
+                   </div>
+                 )}
+
+                 {!detail.structure_available && structureRunning && (
+                   <div className="card p-6">
+                     <h3 className="text-sm font-semibold text-brand-400 uppercase tracking-wider mb-2">
+                       Predicted Structure
+                     </h3>
+                     <p className="text-sm text-brand-500">
+                       Structure prediction is still running. This panel will populate automatically when ready.
+                     </p>
+                   </div>
+                 )}
 
                 {/* Feature tabs */}
                 <div className="card overflow-hidden">

@@ -1,0 +1,3 @@
+id,functional_label,go_term_count,go_terms_json,annotation_methods,red_flag,red_flag_terms,green_flag,green_flag_terms,top_mf_go_id,top_mf_term,top_bp_go_id,top_bp_term,top_cc_go_id,top_cc_term,best_uniprot_accession,best_uniprot_identity,best_uniprot_coverage,best_uniprot_entry_type
+,Uncharacterized activity; likely no biological process; cellular component unknown,0,[],,False,[],False,[],,,,,,,,0.0,0.0,
+sp|P12345|EXAMPLE2,Uncharacterized activity; likely no biological process; cellular component unknown,0,[],,False,[],False,[],,,,,,,,0.0,0.0,

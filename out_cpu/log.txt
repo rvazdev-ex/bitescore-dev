@@ -1,0 +1,5 @@
+2026-04-07 16:37:27,521 Running colabfold 1.6.1 (9712f2ff262d3977d571919317e06cc96c29cd95)
+2026-04-07 16:37:27,780 WARNING: no GPU detected, will be using CPU
+2026-04-07 16:37:27,821 Found 5 citations for tools or databases
+2026-04-07 16:37:27,822 Query 1/1: t (length 27)
+2026-04-07 16:37:29,487 Setting max_seq=2, max_extra_seq=1

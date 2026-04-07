@@ -1,0 +1,15 @@
+[2026-04-06T18:58:27.142370] Starting bitescore pipeline
+[2026-04-06T18:58:27.143011] Loading inputs
+[2026-04-06T18:58:27.225462] Loaded 2 records -> F:\Study\BiteScore\bitescore-dev\results\run1\loaded.faa
+[2026-04-06T18:58:27.226279] Amino acid composition features
+[2026-04-06T18:58:27.226594] Protease recognition site features
+[2026-04-06T18:58:27.226830] Cleavage accessibility structure features
+[2026-04-06T18:58:27.227008] Protein function features
+[2026-04-06T18:58:27.241490] Recognition site features saved: F:\Study\BiteScore\bitescore-dev\results\run1\features_regsite.csv
+[2026-04-06T18:58:27.241671] Functional features saved: F:\Study\BiteScore\bitescore-dev\results\run1\features_function.csv
+[2026-04-06T18:58:27.242148] AA features saved: F:\Study\BiteScore\bitescore-dev\results\run1\features_aa.csv
+[2026-04-06T18:58:27.272691] Structure features saved: F:\Study\BiteScore\bitescore-dev\results\run1\features_structure.csv
+[2026-04-06T18:58:27.283448] Combined features saved: F:\Study\BiteScore\bitescore-dev\results\run1\features.csv
+[2026-04-06T18:58:27.434412] Ranking saved: F:\Study\BiteScore\bitescore-dev\results\run1\ranked.csv
+[2026-04-06T18:58:27.434601] Model saved: F:\Study\BiteScore\bitescore-dev\results\run1\model.joblib
+[2026-04-06T18:58:27.434761] Pipeline completed
